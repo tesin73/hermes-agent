@@ -52,9 +52,13 @@ if [ -d "$INSTALL_DIR/skills" ]; then
     python3 "$INSTALL_DIR/tools/skills_sync.py"
 fi
 
-if [ -t 0 ]; then
-    exec hermes "$@"
-else
+# Detectar modo: si WHATSAPP_SESSION_NAME está definida, forzar modo bridge
+# Esto sobrescribe la detección por TTY que falla en algunos entornos (Coolify)
+if [ -n "$WHATSAPP_SESSION_NAME" ]; then
     # Headless mode for Docker - run WhatsApp Bridge directly
+    echo "Starting WhatsApp Bridge in headless mode (session: $WHATSAPP_SESSION_NAME)"
     cd "$INSTALL_DIR/scripts/whatsapp-bridge" && exec npm start
+else
+    # Interactive CLI mode
+    exec hermes "$@"
 fi
