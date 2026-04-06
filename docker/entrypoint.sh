@@ -11,9 +11,30 @@ INSTALL_DIR="/opt/hermes"
 # get the consolidated layout from get_hermes_dir().
 mkdir -p "$HERMES_HOME"/{cron,sessions,logs,hooks,memories,skills}
 
-# .env
+# .env - con inyección de variables de entorno para modo headless
 if [ ! -f "$HERMES_HOME/.env" ]; then
     cp "$INSTALL_DIR/.env.example" "$HERMES_HOME/.env"
+fi
+
+# Inyectar variables de entorno críticas desde el contenedor al archivo .env
+# Esto es necesario para que el WhatsApp Bridge vea las credenciales
+if [ -n "$OPENROUTER_API_KEY" ]; then
+    # Actualizar o agregar OPENROUTER_API_KEY
+    grep -q "^OPENROUTER_API_KEY=" "$HERMES_HOME/.env" && \
+        sed -i "s|^OPENROUTER_API_KEY=.*|OPENROUTER_API_KEY=$OPENROUTER_API_KEY|" "$HERMES_HOME/.env" || \
+        echo "OPENROUTER_API_KEY=$OPENROUTER_API_KEY" >> "$HERMES_HOME/.env"
+fi
+
+if [ -n "$MODEL" ]; then
+    grep -q "^MODEL=" "$HERMES_HOME/.env" && \
+        sed -i "s|^MODEL=.*|MODEL=$MODEL|" "$HERMES_HOME/.env" || \
+        echo "MODEL=$MODEL" >> "$HERMES_HOME/.env"
+fi
+
+if [ -n "$AGENT_NAME" ]; then
+    grep -q "^AGENT_NAME=" "$HERMES_HOME/.env" && \
+        sed -i "s|^AGENT_NAME=.*|AGENT_NAME=$AGENT_NAME|" "$HERMES_HOME/.env" || \
+        echo "AGENT_NAME=$AGENT_NAME" >> "$HERMES_HOME/.env"
 fi
 
 # config.yaml
