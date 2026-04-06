@@ -5,39 +5,51 @@ set -e
 HERMES_HOME="/opt/data"
 INSTALL_DIR="/opt/hermes"
 
-# Create essential directory structure.  Cache and platform directories
-# (cache/images, cache/audio, platforms/whatsapp, etc.) are created on
-# demand by the application — don't pre-create them here so new installs
-# get the consolidated layout from get_hermes_dir().
+# Create essential directory structure.
 mkdir -p "$HERMES_HOME"/{cron,sessions,logs,hooks,memories,skills}
 
-# .env - con inyección de variables de entorno para modo headless
-if [ ! -f "$HERMES_HOME/.env" ]; then
+# Detectar modo: si WHATSAPP_SESSION_NAME está definida, es modo headless (Docker/Coolify)
+if [ -n "$WHATSAPP_SESSION_NAME" ]; then
+    MODO_HEADLESS=true
+else
+    MODO_HEADLESS=false
+fi
+
+# .env - Solo crear archivo si estamos en modo interactivo (CLI)
+# En modo headless, las variables vienen del entorno de Coolify, no de un archivo
+if [ "$MODO_HEADLESS" = false ] && [ ! -f "$HERMES_HOME/.env" ]; then
     cp "$INSTALL_DIR/.env.example" "$HERMES_HOME/.env"
 fi
 
-# Inyectar variables de entorno críticas desde el contenedor al archivo .env
-# Esto es necesario para que el WhatsApp Bridge vea las credenciales
-if [ -n "$OPENROUTER_API_KEY" ]; then
-    # Actualizar o agregar OPENROUTER_API_KEY
-    grep -q "^OPENROUTER_API_KEY=" "$HERMES_HOME/.env" && \
-        sed -i "s|^OPENROUTER_API_KEY=.*|OPENROUTER_API_KEY=$OPENROUTER_API_KEY|" "$HERMES_HOME/.env" || \
-        echo "OPENROUTER_API_KEY=$OPENROUTER_API_KEY" >> "$HERMES_HOME/.env"
+# En modo headless, opcionalmente podemos crear un .env mínimo con las variables del entorno
+# para compatibilidad con código que busca archivo
+if [ "$MODO_HEADLESS" = true ]; then
+    # Crear/actualizar .env con las variables críticas del entorno
+    ENV_FILE="$HERMES_HOME/.env"
+    
+    # Función para escribir variable si existe en el entorno
+    write_env_var() {
+        local var_name=$1
+        local var_value=${!var_name}
+        if [ -n "$var_value" ]; then
+            # Si existe, reemplazar. Si no, agregar.
+            grep -q "^${var_name}=" "$ENV_FILE" 2>/dev/null && \
+                sed -i "s|^${var_name}=.*|${var_name}=${var_value}|" "$ENV_FILE" || \
+                echo "${var_name}=${var_value}" >> "$ENV_FILE"
+        fi
+    }
+    
+    # Variables críticas para el WhatsApp Bridge
+    write_env_var "OPENROUTER_API_KEY"
+    write_env_var "MODEL"
+    write_env_var "AGENT_NAME"
+    write_env_var "MAX_TURNS"
+    write_env_var "TOOL_PROGRESS"
+    write_env_var "SHOW_REASONING"
+    write_env_var "WHATSAPP_SESSION_NAME"
 fi
 
-if [ -n "$MODEL" ]; then
-    grep -q "^MODEL=" "$HERMES_HOME/.env" && \
-        sed -i "s|^MODEL=.*|MODEL=$MODEL|" "$HERMES_HOME/.env" || \
-        echo "MODEL=$MODEL" >> "$HERMES_HOME/.env"
-fi
-
-if [ -n "$AGENT_NAME" ]; then
-    grep -q "^AGENT_NAME=" "$HERMES_HOME/.env" && \
-        sed -i "s|^AGENT_NAME=.*|AGENT_NAME=$AGENT_NAME|" "$HERMES_HOME/.env" || \
-        echo "AGENT_NAME=$AGENT_NAME" >> "$HERMES_HOME/.env"
-fi
-
-# config.yaml
+# config.yaml - crear si no existe
 if [ ! -f "$HERMES_HOME/config.yaml" ]; then
     cp "$INSTALL_DIR/cli-config.yaml.example" "$HERMES_HOME/config.yaml"
 fi
@@ -47,15 +59,13 @@ if [ ! -f "$HERMES_HOME/SOUL.md" ]; then
     cp "$INSTALL_DIR/docker/SOUL.md" "$HERMES_HOME/SOUL.md"
 fi
 
-# Sync bundled skills (manifest-based so user edits are preserved)
+# Sync bundled skills
 if [ -d "$INSTALL_DIR/skills" ]; then
     python3 "$INSTALL_DIR/tools/skills_sync.py"
 fi
 
-# Detectar modo: si WHATSAPP_SESSION_NAME está definida, forzar modo bridge
-# Esto sobrescribe la detección por TTY que falla en algunos entornos (Coolify)
-if [ -n "$WHATSAPP_SESSION_NAME" ]; then
-    # Headless mode for Docker - run WhatsApp Bridge directly
+# Ejecutar modo según configuración
+if [ "$MODO_HEADLESS" = true ]; then
     echo "Starting WhatsApp Bridge in headless mode (session: $WHATSAPP_SESSION_NAME)"
     cd "$INSTALL_DIR/scripts/whatsapp-bridge" && exec npm start
 else
