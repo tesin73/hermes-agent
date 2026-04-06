@@ -1,15 +1,18 @@
-FROM debian:13.4
+FROM node:20-slim
 
-# Install system dependencies in one layer, clear APT cache
+# Avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install only essential system dependencies (sin nodejs/npm que ya vienen en la imagen base)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        build-essential nodejs npm python3 python3-pip ripgrep ffmpeg gcc python3-dev libffi-dev && \
+        python3 python3-pip python3-venv ripgrep ffmpeg git && \
     rm -rf /var/lib/apt/lists/*
 
 COPY . /opt/hermes
 WORKDIR /opt/hermes
 
-# Install Python and Node dependencies in one layer, no cache
+# Install Python dependencies and setup
 RUN pip install --no-cache-dir -e ".[all]" --break-system-packages && \
     npm install --prefer-offline --no-audit && \
     npx playwright install --with-deps chromium --only-shell && \
@@ -18,6 +21,8 @@ RUN pip install --no-cache-dir -e ".[all]" --break-system-packages && \
     npm cache clean --force
 
 WORKDIR /opt/hermes
+
+# Ensure entrypoint is executable
 RUN chmod +x /opt/hermes/docker/entrypoint.sh
 
 ENV HERMES_HOME=/opt/data
