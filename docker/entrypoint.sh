@@ -31,4 +31,9 @@ if [ -d "$INSTALL_DIR/skills" ]; then
     python3 "$INSTALL_DIR/tools/skills_sync.py"
 fi
 
-exec hermes "$@"
+if [ -t 0 ]; then
+    exec hermes "$@"
+else
+    # Headless mode for Docker - run WhatsApp Bridge directly
+    cd "$INSTALL_DIR/scripts/whatsapp-bridge" && exec npm start
+fi
