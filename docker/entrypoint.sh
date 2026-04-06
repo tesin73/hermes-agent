@@ -8,19 +8,14 @@ INSTALL_DIR="/opt/hermes"
 # Create essential directory structure.
 mkdir -p "$HERMES_HOME"/{cron,sessions,logs,hooks,memories,skills}
 
-# =============================================================================
-# CONFIGURACIÓN DE ARCHIVOS
-# =============================================================================
-
-# .env - copiar si no existe
+# .env - copy example if not exists
 if [ ! -f "$HERMES_HOME/.env" ]; then
     cp "$INSTALL_DIR/.env.example" "$HERMES_HOME/.env"
 fi
 
-# config.yaml - USAR VERSIÓN DOCKER (con Kimi como default)
+# config.yaml - copy example if not exists
 if [ ! -f "$HERMES_HOME/config.yaml" ]; then
-    cp "$INSTALL_DIR/docker/cli-config.yaml" "$HERMES_HOME/config.yaml"
-    echo "[Config] Usando configuración Docker (modelo: openrouter:moonshotai/kimi-k2.5)"
+    cp "$INSTALL_DIR/cli-config.yaml.example" "$HERMES_HOME/config.yaml"
 fi
 
 # SOUL.md
@@ -33,13 +28,10 @@ if [ -d "$INSTALL_DIR/skills" ]; then
     python3 "$INSTALL_DIR/tools/skills_sync.py"
 fi
 
-# =============================================================================
-# INICIO DEL SERVICIO
-# =============================================================================
-
 # Detect mode: if WHATSAPP_SESSION_NAME is set, run WhatsApp Bridge (headless)
 if [ -n "$WHATSAPP_SESSION_NAME" ]; then
-    echo "[Hermes] Iniciando WhatsApp Bridge en modo headless (sesion: $WHATSAPP_SESSION_NAME)"
+    echo "[Hermes] Starting WhatsApp Bridge (session: $WHATSAPP_SESSION_NAME)"
+    echo "[Hermes] Configure model in /opt/data/config.yaml manually"
     cd "$INSTALL_DIR/scripts/whatsapp-bridge" && exec npm start
 else
     # Interactive CLI mode
