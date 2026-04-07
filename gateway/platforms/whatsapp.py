@@ -289,52 +289,6 @@ class WhatsAppAdapter(BasePlatformAdapter):
         
         logger.info("[%s] Bridge found at %s", self.name, bridge_path)
         
-        # Validate session directory - check for conflicts
-        session_parent = self._session_path.parent
-        try:
-            if session_parent.exists():
-                for entry in session_parent.iterdir():
-                    if entry.is_dir() and entry.name != self._session_path.name:
-                        creds_file = entry / "creds.json"
-                        if creds_file.exists():
-                            logger.error(
-                                "[%s] Found conflicting WhatsApp auth directory: %s. "
-                                "This can cause WhatsApp to reject connections with error 405. "
-                                "Remove the conflicting directory to continue.",
-                                self.name, entry
-                            )
-                            self._set_fatal_error(
-                                "whatsapp_session_conflict",
-                                f"Conflicting auth directory found: {entry}",
-                                retryable=False
-                            )
-                            return False
-        except Exception as e:
-            logger.warning("[%s] Could not validate session directory: %s", self.name, e)
-        
-        # Check for unregistered session
-        creds_file = self._session_path / "creds.json"
-        if creds_file.exists():
-            try:
-                import json
-                creds = json.loads(creds_file.read_text())
-                if creds.get("registered") is False:
-                    logger.error(
-                        "[%s] WhatsApp session is not fully registered (registered: false). "
-                        "The previous QR scan may have been incomplete. "
-                        "Delete the session directory and re-authenticate.",
-                        self.name
-                    )
-                    logger.error("[%s] Command to fix: rm -rf %s", self.name, self._session_path)
-                    self._set_fatal_error(
-                        "whatsapp_session_not_registered",
-                        f"Session not registered. Delete {self._session_path} and re-authenticate.",
-                        retryable=False
-                    )
-                    return False
-            except Exception:
-                pass  # Invalid creds.json will be recreated
-        
         # Acquire scoped lock to prevent duplicate sessions
         try:
             from gateway.status import acquire_scoped_lock
