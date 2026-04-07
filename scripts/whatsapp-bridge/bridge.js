@@ -23,7 +23,7 @@ import express from 'express';
 import { Boom } from '@hapi/boom';
 import pino from 'pino';
 import path from 'path';
-import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync } from 'fs';
+import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, statSync, rmSync } from 'fs';
 import { randomBytes } from 'crypto';
 import qrcode from 'qrcode-terminal';
 import { matchesAllowedUser, parseAllowedUsers } from './allowlist.js';
@@ -52,7 +52,54 @@ const ALLOWED_USERS = parseAllowedUsers(process.env.WHATSAPP_ALLOWED_USERS || ''
 const DEFAULT_REPLY_PREFIX = '⚕ *Hermes Agent*\n────────────\n';
 const REPLY_PREFIX = process.env.WHATSAPP_REPLY_PREFIX === undefined
   ? DEFAULT_REPLY_PREFIX
-  : process.env.WHATSAPP_REPLY_PREFIX.replace(/\\n/g, '\n');
+  : process.env.WHATSAPP_REPLY_PREFIX.replace(/\\\\n/g, '\n');
+
+// Validate session directory - prevent conflicts with other auth directories
+function validateSessionDir() {
+  const parentDir = path.dirname(SESSION_DIR);
+  const sessionBaseName = path.basename(SESSION_DIR);
+  
+  try {
+    const entries = readdirSync(parentDir);
+    for (const entry of entries) {
+      const entryPath = path.join(parentDir, entry);
+      const stats = statSync(entryPath);
+      if (stats.isDirectory() && entry !== sessionBaseName) {
+        // Check if this looks like a Baileys auth directory (has creds.json)
+        const credsPath = path.join(entryPath, 'creds.json');
+        if (existsSync(credsPath)) {
+          console.error(`\n❌ ERROR: Found conflicting auth directory: ${entryPath}`);
+          console.error(`   This can cause WhatsApp to reject connections with error 405.`);
+          console.error(`   Solution: Remove the conflicting directory or use --session to specify the correct one.`);
+          console.error(`   Current session directory: ${SESSION_DIR}\n`);
+          process.exit(1);
+        }
+      }
+    }
+  } catch (err) {
+    // Parent directory might not exist yet, that's ok
+  }
+  
+  // Check for unregistered session
+  const credsPath = path.join(SESSION_DIR, 'creds.json');
+  if (existsSync(credsPath)) {
+    try {
+      const creds = JSON.parse(readFileSync(credsPath, 'utf8'));
+      if (creds.registered === false) {
+        console.error(`\n❌ ERROR: Session is not fully registered (registered: false)`);
+        console.error(`   This usually means the QR scan was interrupted or failed.`);
+        console.error(`   Solution: Delete ${SESSION_DIR} and scan QR code again.`);
+        console.error(`   Command: rm -rf ${SESSION_DIR}\n`);
+        process.exit(1);
+      }
+    } catch (err) {
+      // Invalid creds.json, will be recreated
+    }
+  }
+}
+
+// Run validation before creating session directory
+validateSessionDir();
 
 function formatOutgoingMessage(message) {
   // In bot mode, messages come from a different number so the prefix is
@@ -158,6 +205,28 @@ async function startSocket() {
 
       if (reason === DisconnectReason.loggedOut) {
         console.log('❌ Logged out. Delete session and restart to re-authenticate.');
+        process.exit(1);
+      } else if (reason === 405) {
+        // 405 = Connection Failure - usually means session conflict or unregistered session
+        console.error('\n❌ Connection Failure (code 405). This usually means:');
+        console.error('   1. Session not fully registered (QR scan incomplete)');
+        console.error('   2. Conflicting sessions from multiple auth directories');
+        console.error('   3. WhatsApp invalidated the session');
+        console.error(`\n   Solution: Delete session directory and scan QR again.`);
+        console.error(`   Command: rm -rf ${SESSION_DIR}\n`);
+        
+        // Clear the invalid session
+        try {
+          if (existsSync(SESSION_DIR)) {
+            for (const file of readdirSync(SESSION_DIR)) {
+              const filePath = path.join(SESSION_DIR, file);
+              try { rmSync(filePath, { recursive: true }); } catch {}
+            }
+            console.log('✓ Invalid session cleared.');
+          }
+        } catch (err) {
+          console.error('Could not clear session:', err.message);
+        }
         process.exit(1);
       } else {
         // 515 = restart requested (common after pairing). Always reconnect.
