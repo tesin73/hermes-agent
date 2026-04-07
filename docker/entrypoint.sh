@@ -32,6 +32,19 @@ fi
 if [ -n "$WHATSAPP_SESSION_NAME" ]; then
     echo "[Hermes] Starting WhatsApp Bridge (session: $WHATSAPP_SESSION_NAME)"
     echo "[Hermes] Configure model in /opt/data/config.yaml manually"
+    
+    # =============================================================================
+    # PERSISTENCIA DE SESIÓN WHATSAPP
+    # =============================================================================
+    # El Bridge guarda la sesión en ~/.hermes/whatsapp/session
+    # Pero necesitamos que persista en el volumen /opt/data
+    # Creamos symlink para que la sesión sobreviva reinicios
+    
+    mkdir -p "$HERMES_HOME/whatsapp"
+    rm -rf ~/.hermes/whatsapp 2>/dev/null || true
+    mkdir -p ~/.hermes
+    ln -sf "$HERMES_HOME/whatsapp" ~/.hermes/whatsapp
+    
     cd "$INSTALL_DIR/scripts/whatsapp-bridge" && exec npm start
 else
     # Interactive CLI mode
