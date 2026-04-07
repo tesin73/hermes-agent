@@ -30,22 +30,29 @@ fi
 
 # Detect mode: if WHATSAPP_SESSION_NAME is set, run WhatsApp Bridge (headless)
 if [ -n "$WHATSAPP_SESSION_NAME" ]; then
-    echo "[Hermes] Starting WhatsApp Bridge (session: $WHATSAPP_SESSION_NAME)"
-    echo "[Hermes] Configure model in /opt/data/config.yaml manually"
+    echo "[Hermes] WhatsApp mode enabled (session: $WHATSAPP_SESSION_NAME)"
     
     # =============================================================================
     # PERSISTENCIA DE SESIÓN WHATSAPP
     # =============================================================================
-    # El Bridge guarda la sesión en ~/.hermes/whatsapp/session
-    # Pero necesitamos que persista en el volumen /opt/data
-    # Creamos symlink para que la sesión sobreviva reinicios
-    
     mkdir -p "$HERMES_HOME/whatsapp"
     rm -rf ~/.hermes/whatsapp 2>/dev/null || true
     mkdir -p ~/.hermes
     ln -sf "$HERMES_HOME/whatsapp" ~/.hermes/whatsapp
     
-    cd "$INSTALL_DIR/scripts/whatsapp-bridge" && exec npm start
+    # Check for manual pairing mode
+    if [ "${WHATSAPP_MANUAL_PAIR:-false}" = "true" ]; then
+        echo "[Hermes] Manual pairing mode enabled."
+        echo "[Hermes] To pair WhatsApp, run: docker exec <container> hermes whatsapp pair"
+        echo "[Hermes] Waiting for manual pairing..."
+        
+        # Keep container alive with tail
+        tail -f /dev/null
+    else
+        echo "[Hermes] Auto-starting WhatsApp Bridge..."
+        echo "[Hermes] Configure model in /opt/data/config.yaml manually"
+        cd "$INSTALL_DIR/scripts/whatsapp-bridge" && exec npm start
+    fi
 else
     # Interactive CLI mode
     exec hermes "$@"
