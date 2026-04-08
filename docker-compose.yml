@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  hermes:
+    build: .
+    container_name: ${CONTAINER_NAME:-hermes-agent}
+    restart: unless-stopped
+    
+    environment:
+      # Required: OpenRouter API Key
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:?Error: OPENROUTER_API_KEY is required}
+      
+      # Model configuration
+      - MODEL=${MODEL:-openrouter:moonshotai/kimi-k2.5}
+      - AGENT_NAME=${AGENT_NAME:-Hermes}
+      - MAX_TURNS=${MAX_TURNS:-60}
+      
+      # UX Settings (clean for clients)
+      - TOOL_PROGRESS=${TOOL_PROGRESS:-off}
+      - SHOW_REASONING=${SHOW_REASONING:-false}
+      
+      # WhatsApp Configuration (CRITICAL for auto-pairing)
+      - WHATSAPP_SESSION_NAME=${WHATSAPP_SESSION_NAME:?Error: WHATSAPP_SESSION_NAME is required for WhatsApp mode}
+      - WHATSAPP_MODE=${WHATSAPP_MODE:-bot}
+      - WHATSAPP_ALLOWED_USERS=${WHATSAPP_ALLOWED_USERS:-}
+      
+      # Optional: Gateway settings
+      - GATEWAY_ALLOW_ALL_USERS=${GATEWAY_ALLOW_ALL_USERS:-false}
+      
+      # Debug
+      - WHATSAPP_DEBUG=${WHATSAPP_DEBUG:-false}
+    
+    volumes:
+      # Persistent data (sessions, logs, memories, skills)
+      - hermes_data:/opt/data
+      
+      # Optional: Mount custom SOUL.md
+      # - ./SOUL.md:/opt/data/SOUL.md:ro
+    
+    ports:
+      # Only needed if you want to expose the bridge API externally
+      # - "3000:3000"
+      - "8080:8080"
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  hermes_data:
+    name: ${VOLUME_NAME:-hermes_data}
