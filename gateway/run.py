@@ -1188,14 +1188,24 @@ class GatewayRunner:
                 self._request_clean_exit(reason)
                 return True
             if enabled_platform_count > 0:
-                reason = "; ".join(startup_retryable_errors) or "all configured messaging platforms failed to connect"
-                logger.error("Gateway failed to connect any configured messaging platform: %s", reason)
-                try:
-                    from gateway.status import write_runtime_status
-                    write_runtime_status(gateway_state="startup_failed", exit_reason=reason)
-                except Exception:
-                    pass
-                return False
+                # MODIFIED: Don't exit if there are retryable errors - keep waiting
+                # This allows manual bridge startup in Docker/container environments
+                if os.getenv("GATEWAY_WAIT_FOR_PLATFORMS", "").lower() in ("true", "1", "yes"):
+                    reason = "; ".join(startup_retryable_errors) or "platforms not ready, waiting..."
+                    logger.warning("Gateway platforms not ready yet: %s", reason)
+                    logger.warning("Gateway will keep waiting for platforms to become available...")
+                    logger.warning("Start the bridge manually when ready: docker exec <container> node /opt/hermes/scripts/whatsapp-bridge/bridge.js --session /opt/data/whatsapp/session --port 3000")
+                    # Don't return False - keep the gateway running and retrying
+                    return True
+                else:
+                    reason = "; ".join(startup_retryable_errors) or "all configured messaging platforms failed to connect"
+                    logger.error("Gateway failed to connect any configured messaging platform: %s", reason)
+                    try:
+                        from gateway.status import write_runtime_status
+                        write_runtime_status(gateway_state="startup_failed", exit_reason=reason)
+                    except Exception:
+                        pass
+                    return False
             logger.warning("No messaging platforms enabled.")
             logger.info("Gateway will continue running for cron job execution.")
         

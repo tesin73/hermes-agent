@@ -40,22 +40,13 @@ if [ -n "$WHATSAPP_SESSION_NAME" ]; then
     mkdir -p ~/.hermes
     ln -sf "$HERMES_HOME/whatsapp" ~/.hermes/whatsapp
     
-    # Check for manual pairing mode
-    if [ "${WHATSAPP_MANUAL_PAIR:-false}" = "true" ]; then
-        echo "[Hermes] Manual pairing mode enabled."
-        echo "[Hermes] To start WhatsApp: docker exec <container> hermes gateway"
-        echo "[Hermes] To pair only: docker exec -it <container> node /opt/hermes/scripts/whatsapp-bridge/bridge.js --pair-only --session /opt/data/whatsapp/session --mode bot"
-        echo "[Hermes] Waiting for manual start..."
-        
-        # Keep container alive with tail
-        tail -f /dev/null
-    else
-        # Auto-start the gateway (which will handle the bridge)
-        echo "[Hermes] Starting Hermes Gateway with WhatsApp support..."
-        echo "[Hermes] The gateway will automatically start the WhatsApp bridge."
-        echo "[Hermes] QR code will appear in logs when ready for pairing."
-        exec hermes gateway
-    fi
+    # Auto-start the gateway (which will wait for the bridge)
+    echo "[Hermes] Starting Hermes Gateway..."
+    echo "[Hermes] The gateway will wait for the WhatsApp bridge to be available."
+    echo "[Hermes] To start the bridge manually, run:"
+    echo "  docker exec -it <container> node /opt/hermes/scripts/whatsapp-bridge/bridge.js --session /opt/data/whatsapp/session --port 3000 --mode bot"
+    echo "[Hermes] Then scan the QR code with your phone."
+    exec hermes gateway
 else
     # Interactive CLI mode - but check if we have a terminal
     if [ -t 0 ]; then
@@ -66,7 +57,6 @@ else
         echo "[Hermes] Container ready. Run commands manually with:"
         echo "  docker exec <container> hermes <command>"
         echo "  docker exec <container> hermes gateway"
-        echo "  docker exec <container> node /opt/hermes/scripts/whatsapp-bridge/bridge.js --help"
         echo "[Hermes] Waiting for manual commands..."
         tail -f /dev/null
     fi
