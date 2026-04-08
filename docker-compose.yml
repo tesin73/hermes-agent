@@ -24,9 +24,10 @@ services:
       - SHOW_REASONING=${SHOW_REASONING:-false}
       
       # WhatsApp Configuration
+      - WHATSAPP_ENABLED=true
       - WHATSAPP_MODE=${WHATSAPP_MODE:-bot}
       - WHATSAPP_ALLOWED_USERS=${WHATSAPP_ALLOWED_USERS:-}
-      - WHATSAPP_DEBUG=${WHATSAPP_DEBUG:-false}
+      - WHATSAPP_DEBUG=${WHATSAPP_DEBUG:-true}
       
       # Gateway
       - GATEWAY_ALLOW_ALL_USERS=${GATEWAY_ALLOW_ALL_USERS:-false}

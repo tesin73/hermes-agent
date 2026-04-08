@@ -78,6 +78,10 @@ if [ "$WHATSAPP_READY" = "true" ]; then
             echo "[Hermes] WARNING: Bridge did not respond in 30s, but continuing..."
         fi
     done
+    
+    # CRITICAL: Set WHATSAPP_ENABLED for gateway to detect
+    export WHATSAPP_ENABLED=true
+    echo "[Hermes] WHATSAPP_ENABLED=true set for gateway"
 else
     echo ""
     echo "=========================================="
@@ -91,6 +95,16 @@ else
     echo "=========================================="
     echo ""
 fi
+
+# =============================================================================
+# DEBUG: Show environment
+# =============================================================================
+echo ""
+echo "[Hermes] Environment Configuration:"
+echo "  WHATSAPP_ENABLED=${WHATSAPP_ENABLED:-not set}"
+echo "  WHATSAPP_MODE=${WHATSAPP_MODE:-not set}"
+echo "  WHATSAPP_ALLOWED_USERS=${WHATSAPP_ALLOWED_USERS:-not set}"
+echo ""
 
 # =============================================================================
 # START HERMES GATEWAY (Always)
