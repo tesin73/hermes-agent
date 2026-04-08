@@ -6,6 +6,10 @@ services:
     container_name: ${CONTAINER_NAME:-hermes-agent}
     restart: unless-stopped
     
+    # CRITICAL for Coolify: Enable TTY and Stdin for QR code display
+    tty: true
+    stdin_open: true
+    
     environment:
       # Required: API Key
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:?Error: OPENROUTER_API_KEY is required}
@@ -28,14 +32,14 @@ services:
       - GATEWAY_ALLOW_ALL_USERS=${GATEWAY_ALLOW_ALL_USERS:-false}
     
     volumes:
-      # Persistent data
+      # NOTE: For Coolify, you MUST configure these as "Persistent" 
+      # in the Coolify UI (Storage tab) for data to survive rebuilds
       - hermes_data:/opt/data
+      - hermes_whatsapp_session:/opt/data/whatsapp/session
     
     ports:
       # Gateway API
       - "8080:8080"
-      # WhatsApp Bridge (internal, but useful for debugging)
-      # - "3000:3000"  # Uncomment to expose bridge externally
     
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
@@ -53,3 +57,5 @@ services:
 volumes:
   hermes_data:
     name: ${VOLUME_NAME:-hermes_data}
+  hermes_whatsapp_session:
+    name: ${VOLUME_NAME:-hermes_data}_whatsapp_session
