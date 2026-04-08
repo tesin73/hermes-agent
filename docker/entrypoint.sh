@@ -54,6 +54,17 @@ if [ -n "$WHATSAPP_SESSION_NAME" ]; then
         cd "$INSTALL_DIR/scripts/whatsapp-bridge" && exec npm start
     fi
 else
-    # Interactive CLI mode
-    exec hermes "$@"
+    # Interactive CLI mode - but check if we have a terminal
+    if [ -t 0 ]; then
+        # Terminal available - run interactively
+        exec hermes "$@"
+    else
+        # No terminal - keep container alive for manual exec
+        echo "[Hermes] Container ready. Run commands manually with:"
+        echo "  docker exec <container> hermes <command>"
+        echo "  docker exec <container> hermes gateway"
+        echo "  docker exec <container> node /opt/hermes/scripts/whatsapp-bridge/bridge.js --help"
+        echo "[Hermes] Waiting for manual commands..."
+        tail -f /dev/null
+    fi
 fi
