@@ -358,7 +358,41 @@ class WhatsAppAdapter(BasePlatformAdapter):
                             else:
                                 print(f"[{self.name}] Bridge found but not connected (status: {bridge_status}), restarting")
             except Exception:
-                pass  # Bridge not running, start a new one
+                pass  # Bridge not running, check if we should start it
+            
+            # Check if manual bridge mode is enabled
+            if os.getenv("WHATSAPP_BRIDGE_MANUAL", "").lower() in ("true", "1", "yes"):
+                print(f"[{self.name}] Bridge not running, but WHATSAPP_BRIDGE_MANUAL is enabled.")
+                print(f"[{self.name}] Please start the bridge manually with:")
+                print(f"  docker exec <container> node {bridge_path} --port {self._bridge_port} --session {self._session_path} --mode {os.getenv('WHATSAPP_MODE', 'self-chat')}")
+                print(f"[{self.name}] Waiting for bridge to be available...")
+                
+                # Wait for bridge to appear (user starts it manually)
+                for attempt in range(300):  # Wait up to 5 minutes
+                    await asyncio.sleep(1)
+                    try:
+                        async with aiohttp.ClientSession() as session:
+                            async with session.get(
+                                f"http://127.0.0.1:{self._bridge_port}/health",
+                                timeout=aiohttp.ClientTimeout(total=2)
+                            ) as resp:
+                                if resp.status == 200:
+                                    data = await resp.json()
+                                    bridge_status = data.get("status", "unknown")
+                                    if bridge_status == "connected":
+                                        print(f"[{self.name}] Bridge detected (status: {bridge_status})")
+                                        self._mark_connected()
+                                        self._bridge_process = None  # Not managed by us
+                                        self._http_session = aiohttp.ClientSession()
+                                        self._poll_task = asyncio.create_task(self._poll_messages())
+                                        return True
+                    except Exception:
+                        if attempt % 30 == 0:  # Print every 30 seconds
+                            print(f"[{self.name}] Still waiting for bridge... ({attempt}s)")
+                        continue
+                
+                print(f"[{self.name}] Timeout waiting for manual bridge start")
+                return False
             
             # Kill any orphaned bridge from a previous gateway run
             _kill_port_process(self._bridge_port)
