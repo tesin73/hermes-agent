@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  hermes:
+    build: .
+    container_name: ${CONTAINER_NAME:-hermes-agent}
+    restart: unless-stopped
+    
+    environment:
+      # Required: API Key
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:?Error: OPENROUTER_API_KEY is required}
+      
+      # Model configuration
+      - MODEL=${MODEL:-openrouter:moonshotai/kimi-k2.5}
+      - AGENT_NAME=${AGENT_NAME:-Hermes}
+      - MAX_TURNS=${MAX_TURNS:-60}
+      
+      # UX Settings
+      - TOOL_PROGRESS=${TOOL_PROGRESS:-off}
+      - SHOW_REASONING=${SHOW_REASONING:-false}
+      
+      # WhatsApp Configuration
+      - WHATSAPP_MODE=${WHATSAPP_MODE:-bot}
+      - WHATSAPP_ALLOWED_USERS=${WHATSAPP_ALLOWED_USERS:-}
+      - WHATSAPP_DEBUG=${WHATSAPP_DEBUG:-false}
+      
+      # Gateway
+      - GATEWAY_ALLOW_ALL_USERS=${GATEWAY_ALLOW_ALL_USERS:-false}
+    
+    volumes:
+      # Persistent data
+      - hermes_data:/opt/data
+    
+    ports:
+      # Gateway API
+      - "8080:8080"
+      # WhatsApp Bridge (internal, but useful for debugging)
+      # - "3000:3000"  # Uncomment to expose bridge externally
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  hermes_data:
+    name: ${VOLUME_NAME:-hermes_data}

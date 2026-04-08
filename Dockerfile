@@ -22,8 +22,8 @@ RUN pip install --no-cache-dir -e ".[all]" --break-system-packages && \
 
 WORKDIR /opt/hermes
 
-# Ensure entrypoint is executable
-RUN chmod +x /opt/hermes/docker/entrypoint.sh
+# Ensure all docker scripts are executable
+RUN chmod +x /opt/hermes/docker/*.sh
 
 ENV HERMES_HOME=/opt/data
 VOLUME [ "/opt/data" ]
