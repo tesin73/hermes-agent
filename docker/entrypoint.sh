@@ -2,7 +2,7 @@
 # Docker entrypoint: bootstrap config files into the mounted volume, then run hermes.
 set -e
 
-HERMES_HOME="/opt/data"
+HERMES_HOME="${HERMES_HOME:-/opt/data}"
 INSTALL_DIR="/opt/hermes"
 
 # Create essential directory structure.
@@ -29,7 +29,7 @@ if [ -d "$INSTALL_DIR/skills" ]; then
 fi
 
 # =============================================================================
-# WHATSAPP BRIDGE SETUP
+# WHATSAPP SETUP
 # =============================================================================
 # Setup WhatsApp session directory even if not paired yet
 mkdir -p "$HERMES_HOME/whatsapp"
@@ -37,24 +37,30 @@ rm -rf ~/.hermes/whatsapp 2>/dev/null || true
 mkdir -p ~/.hermes
 ln -sf "$HERMES_HOME/whatsapp" ~/.hermes/whatsapp
 
-# Check if WhatsApp session is ready
 CREDS_FILE="$HERMES_HOME/whatsapp/session/creds.json"
 WHATSAPP_READY=false
 
+# Check if WhatsApp session exists and is registered
 if [ -f "$CREDS_FILE" ]; then
     if grep -q '"registered": true' "$CREDS_FILE" 2>/dev/null; then
         WHATSAPP_READY=true
-        echo "[Hermes] WhatsApp session found and registered."
+        echo "[entrypoint] ✅ WhatsApp session found and registered"
+        # Extract phone number for display
+        PHONE=$(grep '"id":' "$CREDS_FILE" 2>/dev/null | head -1 | sed 's/.*: "//' | sed 's/@.*//')
+        echo "[entrypoint]    Phone: $PHONE"
     else
-        echo "[Hermes] WhatsApp session exists but is NOT registered."
+        echo "[entrypoint] ⚠️  WhatsApp session exists but NOT registered"
     fi
 else
-    echo "[Hermes] No WhatsApp session found. WhatsApp will be available after pairing."
+    echo "[entrypoint] ℹ️  No WhatsApp session found"
 fi
 
-# Start WhatsApp Bridge if session is ready
-if [ "$WHATSAPP_READY" = "true" ]; then
-    echo "[Hermes] Starting WhatsApp Bridge on port 3000..."
+# =============================================================================
+# START WHATSAPP BRIDGE IF SESSION EXISTS
+# =============================================================================
+if [ "$WHATSAPP_READY" = "true" ] && [ "${WHATSAPP_ENABLED:-false}" = "true" ]; then
+    echo "[entrypoint] 🚀 Starting WhatsApp Bridge (port 3000)..."
+    
     cd "$INSTALL_DIR/scripts/whatsapp-bridge"
     
     nohup node bridge.js \
@@ -64,32 +70,28 @@ if [ "$WHATSAPP_READY" = "true" ]; then
         > "$HERMES_HOME/whatsapp/bridge.log" 2>&1 &
     
     BRIDGE_PID=$!
-    echo "[Hermes] Bridge started with PID: $BRIDGE_PID"
+    echo "[entrypoint]    Bridge PID: $BRIDGE_PID"
     
     # Wait for bridge health check
-    echo "[Hermes] Waiting for bridge to be ready..."
+    echo "[entrypoint]    Waiting for bridge to be ready..."
     for i in {1..30}; do
         sleep 1
         if curl -s http://127.0.0.1:3000/health > /dev/null 2>&1; then
-            echo "[Hermes] WhatsApp Bridge is ready!"
+            echo "[entrypoint]    ✅ Bridge is ready!"
             break
         fi
         if [ $i -eq 30 ]; then
-            echo "[Hermes] WARNING: Bridge did not respond in 30s, but continuing..."
+            echo "[entrypoint]    ⚠️  Bridge did not respond in 30s"
         fi
     done
-    
-    # CRITICAL: Set WHATSAPP_ENABLED for gateway to detect
-    export WHATSAPP_ENABLED=true
-    echo "[Hermes] WHATSAPP_ENABLED=true set for gateway"
-else
+elif [ "$WHATSAPP_READY" = "false" ] && [ "${WHATSAPP_ENABLED:-false}" = "true" ]; then
     echo ""
     echo "=========================================="
-    echo "📱 WHATSAPP PAIRING AVAILABLE"
+    echo "📱 WHATSAPP PAIRING REQUIRED"
     echo "=========================================="
     echo ""
-    echo "To pair WhatsApp, run:"
-    echo "  docker exec -it <container> /opt/hermes/docker/pair-whatsapp.sh"
+    echo "To pair WhatsApp, run in Coolify Terminal:"
+    echo "  /opt/hermes/docker/pair-whatsapp.sh"
     echo ""
     echo "Then scan the QR code with your phone."
     echo "=========================================="
@@ -97,17 +99,20 @@ else
 fi
 
 # =============================================================================
-# DEBUG: Show environment
+# DEBUG OUTPUT
 # =============================================================================
-echo ""
-echo "[Hermes] Environment Configuration:"
-echo "  WHATSAPP_ENABLED=${WHATSAPP_ENABLED:-not set}"
-echo "  WHATSAPP_MODE=${WHATSAPP_MODE:-not set}"
-echo "  WHATSAPP_ALLOWED_USERS=${WHATSAPP_ALLOWED_USERS:-not set}"
-echo ""
+if [ "${WHATSAPP_DEBUG:-false}" = "true" ]; then
+    echo ""
+    echo "[entrypoint] Debug Info:"
+    echo "    WHATSAPP_ENABLED=${WHATSAPP_ENABLED:-not set}"
+    echo "    WHATSAPP_MODE=${WHATSAPP_MODE:-not set}"
+    echo "    WHATSAPP_ALLOWED_USERS=${WHATSAPP_ALLOWED_USERS:-not set}"
+    echo "    HERMES_MODEL=${HERMES_MODEL:-not set}"
+    echo ""
+fi
 
 # =============================================================================
-# START HERMES GATEWAY (Always)
+# START GATEWAY
 # =============================================================================
-echo "[Hermes] Starting Hermes Gateway..."
+echo "[entrypoint] 🚀 Starting Hermes Gateway..."
 exec hermes gateway
