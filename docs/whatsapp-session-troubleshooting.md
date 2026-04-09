@@ -196,6 +196,43 @@ docker exec -it <container> node /opt/hermes/scripts/whatsapp-bridge/bridge.js \
 
 ---
 
+## Automatización Segura por Contenedor
+
+Este script limpia la sesión de **UN SOLO contenedor** sin afectar a otros:
+
+```bash
+#!/bin/bash
+# Auto-fix WhatsApp session - SOLO afecta al contenedor especificado
+CONTAINER="ntkv37t2m7lkoea6ov1svky4-044255085820"
+
+# Detectar volumen de ESTE contenedor (aislado de los demás)
+VOLUME=$(docker inspect "$CONTAINER" --format='{{range .Mounts}}{{if eq .Destination "/opt/data"}}{{.Source}}{{end}}{{end}}')
+
+echo "Volumen afectado: $VOLUME"
+echo "Los otros contenedores usan volúmenes diferentes - NO se ven afectados"
+
+# Detener, limpiar, reiniciar
+docker stop "$CONTAINER"
+sudo find "$VOLUME/whatsapp/session/" -type f -delete
+docker start "$CONTAINER"
+
+# Emparejamiento manual requerido
+docker exec -it "$CONTAINER" node /opt/hermes/scripts/whatsapp-bridge/bridge.js \
+  --pair-only --session /opt/data/whatsapp/session --mode bot
+```
+
+### Cada contenedor tiene su propio volumen:
+
+```
+Contenedor 1 → /var/lib/coolify/volumes/hermes-cliente1-data/
+Contenedor 2 → /var/lib/coolify/volumes/hermes-cliente2-data/
+Contenedor N → /var/lib/coolify/volumes/hermes-clienteN-data/
+```
+
+**Aislados completamente** - borrar en uno no toca los otros.
+
+---
+
 ## Referencias
 
 - [Baileys Documentation](https://github.com/WhiskeySockets/Baileys)
