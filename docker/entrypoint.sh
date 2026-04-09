@@ -66,7 +66,7 @@ if [ "$WHATSAPP_READY" = "true" ] && [ "${WHATSAPP_ENABLED:-false}" = "true" ]; 
     nohup node bridge.js \
         --port 3000 \
         --session "$HERMES_HOME/whatsapp/session" \
-        --mode "${WHATSAPP_MODE:-bot}" \
+        --mode "${WHATSAPP_MODE:-self-chat}" \
         > "$HERMES_HOME/whatsapp/bridge.log" 2>&1 &
     
     BRIDGE_PID=$!
