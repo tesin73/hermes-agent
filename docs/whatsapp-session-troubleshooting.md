@@ -196,9 +196,153 @@ docker exec -it <container> node /opt/hermes/scripts/whatsapp-bridge/bridge.js \
 
 ---
 
-## Automatización Segura por Contenedor
+## Procedimiento Manual Completo (Paso a Paso)
 
-Este script limpia la sesión de **UN SOLO contenedor** sin afectar a otros:
+### Paso 0: Conectar a la VPS
+
+```bash
+# Conectar por SSH (ejemplo)
+ssh root@srv1550967
+
+# O con usuario específico
+ssh edison@srv1550967
+```
+
+### Paso 1: Cambiar al usuario correcto
+
+Coolify generalmente corre como root o un usuario específico:
+
+```bash
+# Si entraste como root, cambiar a usuario edison (ejemplo)
+su edison
+
+# O si necesitás root
+sudo -i
+
+# Verificar que tenés acceso a docker
+docker ps
+```
+
+### Paso 2: Identificar el contenedor de Hermes
+
+```bash
+# Ver todos los contenedores activos
+docker ps
+
+# Output típico:
+# CONTAINER ID   IMAGE              STATUS          NAMES
+# fc56c7a7bded   ntkv37t2m7lkoea6ov1svky4:a0754f64   Up 2 hours      ntkv37t2m7lkoea6ov1svky4-044255085820
+# 6191a879e717   traefik:v3.6       Up 3 days       coolify-proxy
+# ...
+
+# Copiar el nombre del contenedor de Hermes (el que NO es traefik, postgres, redis, etc.)
+# Ejemplo: ntkv37t2m7lkoea6ov1svky4-044255085820
+```
+
+### Paso 3: Encontrar el volumen de este contenedor
+
+```bash
+# Guardar el nombre del contenedor en una variable
+CONTAINER="ntkv37t2m7lkoea6ov1svky4-044255085820"
+
+# Obtener la ruta del volumen
+docker inspect "$CONTAINER" --format='{{range .Mounts}}{{if eq .Destination "/opt/data"}}{{.Source}}{{end}}{{end}}'
+
+# Output típico: /var/lib/coolify/volumes/hermes-data
+```
+
+### Paso 4: Verificar errores en los logs (diagnóstico)
+
+```bash
+# Ver últimos errores
+docker logs --tail 100 "$CONTAINER" | grep -E "PreKeyError|registered|Connection closed"
+
+# Verificar si está registrado
+docker exec "$CONTAINER" cat /opt/data/whatsapp/session/creds.json 2>/dev/null | grep '"registered"' || echo "No hay creds.json"
+```
+
+### Paso 5: Detener el contenedor
+
+```bash
+# Detener
+docker stop "$CONTAINER"
+
+# Verificar que se detuvo
+docker ps | grep "$CONTAINER"
+# No debe mostrar nada (o estar en estado Exited)
+```
+
+### Paso 6: Limpiar la sesión corrupta
+
+```bash
+# Definir la ruta del volumen (reemplazar con la que obtuviste en Paso 3)
+VOLUME="/var/lib/coolify/volumes/hermes-data"
+
+# Eliminar TODOS los archivos de sesión
+sudo find "$VOLUME/whatsapp/session/" -type f -delete
+
+# Verificar que quedó vacío (solo debe mostrar . y ..)
+sudo ls -la "$VOLUME/whatsapp/session/"
+```
+
+### Paso 7: Iniciar el contenedor
+
+```bash
+# Iniciar
+docker start "$CONTAINER"
+
+# Esperar que arranque
+sleep 5
+
+# Verificar que está corriendo
+docker ps | grep "$CONTAINER"
+```
+
+### Paso 8: Emparejar con QR (paso crítico)
+
+```bash
+# Ejecutar modo emparejamiento - esto muestra el QR en pantalla
+docker exec -it "$CONTAINER" node /opt/hermes/scripts/whatsapp-bridge/bridge.js \
+  --pair-only \
+  --session /opt/data/whatsapp/session \
+  --mode bot
+
+# Verás un código QR grande en la terminal. Escanealo con tu teléfono:
+# WhatsApp → ⋮ (menú) → Dispositivos vinculados → Vincular dispositivo
+# Apuntá la cámara al QR
+
+# Cuando diga "Connected successfully", presioná Ctrl+C para salir
+```
+
+### Paso 9: Reiniciar el contenedor
+
+```bash
+# Reiniciar para que arranque con la nueva sesión
+docker restart "$CONTAINER"
+
+# Verificar que está healthy
+docker ps | grep "$CONTAINER"
+```
+
+### Paso 10: Verificar que funciona
+
+```bash
+# Verificar que creds.json ahora dice registered: true
+docker exec "$CONTAINER" cat /opt/data/whatsapp/session/creds.json | grep '"registered"'
+# Debe mostrar: "registered": true
+
+# Ver logs recientes
+docker logs --tail 20 "$CONTAINER"
+# Buscar: "Connection opened" o mensajes sin errores PreKeyError
+
+# Probar enviando un mensaje al bot por WhatsApp
+```
+
+---
+
+## Automatización con Script
+
+Si preferís automatizar, podés usar este script que hace los pasos 5-9:
 
 ```bash
 #!/bin/bash
