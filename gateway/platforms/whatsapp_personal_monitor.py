@@ -65,9 +65,23 @@ class WhatsAppPersonalMonitor(BasePlatformAdapter):
             pass
     
     def _get_default_session_path(self) -> Path:
-        """Path por defecto para la sesión personal."""
-        from hermes_cli.config import get_hermes_home
-        return get_hermes_home() / "whatsapp" / "session-personal"
+        """Path por defecto para la sesión personal.
+        
+        En Docker/Coolify, las sesiones están en /opt/data (volumen persistente).
+        En desarrollo local, usan ~/.hermes (HERMES_HOME).
+        """
+        from hermes_constants import get_hermes_dir
+        
+        # En Docker, el volumen se monta en /opt/data y se symlink a ~/.hermes
+        # Pero si el symlink no existe, buscamos directamente en /opt/data
+        docker_path = Path("/opt/data/whatsapp/session-personal")
+        if docker_path.exists() or Path("/.dockerenv").exists():
+            # Estamos en Docker o la sesión ya existe en /opt/data
+            docker_path.parent.mkdir(parents=True, exist_ok=True)
+            return docker_path
+        
+        # Fallback: usar el layout estándar de hermes
+        return get_hermes_dir("platforms/whatsapp/session-personal", "whatsapp/session-personal")
     
     @property
     def requires_credentials(self) -> bool:
