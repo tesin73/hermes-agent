@@ -50,6 +50,8 @@ _HERMES_CORE_TOOLS = [
     "text_to_speech",
     # Planning & memory
     "todo", "memory",
+    # WhatsApp contact memory [TIAMAT]
+    "search_whatsapp_memory", "get_whatsapp_memory_stats",
     # Session history search
     "session_search",
     # Clarifying questions

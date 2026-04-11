@@ -81,6 +81,18 @@ from gateway.platforms.base import (
     cache_audio_from_url,
 )
 
+# [TIAMAT] Import contact memory store (lazy import en __init__ para evitar circular imports)
+WhatsAppContactStore = None
+def _get_contact_store_class():
+    global WhatsAppContactStore
+    if WhatsAppContactStore is None:
+        try:
+            from .whatsapp_contact_store import WhatsAppContactStore as WCS
+            WhatsAppContactStore = WCS
+        except ImportError:
+            pass
+    return WhatsAppContactStore
+
 
 def check_whatsapp_requirements() -> bool:
     """
@@ -147,6 +159,16 @@ class WhatsAppAdapter(BasePlatformAdapter):
         self._poll_task: Optional[asyncio.Task] = None
         self._http_session: Optional["aiohttp.ClientSession"] = None
         self._session_lock_identity: Optional[str] = None
+        
+        # [TIAMAT] Contact memory store para recordar mensajes de todos los contactos
+        self._contact_store: Optional[Any] = None
+        try:
+            WCS = _get_contact_store_class()
+            if WCS:
+                self._contact_store = WCS()
+        except Exception:
+            # Si falla la importación, continuamos sin contact store
+            pass
 
     def _whatsapp_require_mention(self) -> bool:
         configured = self.config.extra.get("require_mention")
@@ -811,6 +833,39 @@ class WhatsAppAdapter(BasePlatformAdapter):
         
         return {"name": chat_id, "type": "dm"}
     
+    def _store_in_contact_memory(self, msg_data: Dict[str, Any]) -> None:
+        """
+        [TIAMAT] Guarda mensaje en el store de contactos.
+        Se ejecuta para TODOS los mensajes entrantes, no solo los que mencionan al bot.
+        Esto permite que el agente recuerde conversaciones para referirse a ellas luego.
+        """
+        if not self._contact_store:
+            return
+        
+        try:
+            # Extraer datos del mensaje
+            sender_id = msg_data.get("senderId", "")
+            sender_name = msg_data.get("senderName", "")
+            body = msg_data.get("body", "")
+            is_from_me = msg_data.get("fromMe", False)
+            chat_id = msg_data.get("chatId", "")
+            
+            # No guardar mensajes vacíos ni del propio bot (fromMe)
+            if not body or is_from_me:
+                return
+            
+            # Guardar en el contact store
+            self._contact_store.store_message(
+                phone=sender_id,
+                name=sender_name,
+                body=body,
+                from_me=False,  # Siempre False aquí porque filtramos arriba
+                chat_id=chat_id
+            )
+        except Exception:
+            # Nunca fallar el procesamiento principal por esto
+            pass
+    
     async def _poll_messages(self) -> None:
         """Poll the bridge for incoming messages."""
         import aiohttp
@@ -830,6 +885,11 @@ class WhatsAppAdapter(BasePlatformAdapter):
                     if resp.status == 200:
                         messages = await resp.json()
                         for msg_data in messages:
+                            # [TIAMAT] Guardar en memoria de contactos PRIMERO
+                            # Esto captura todos los mensajes, no solo los que mencionan al bot
+                            self._store_in_contact_memory(msg_data)
+                            
+                            # Procesar mensaje normalmente (solo si es para el bot)
                             event = await self._build_message_event(msg_data)
                             if event:
                                 await self.handle_message(event)
