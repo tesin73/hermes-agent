@@ -848,6 +848,121 @@ def cmd_whatsapp(args):
         print("⚠ Pairing may not have completed. Run 'hermes whatsapp' to try again.")
 
 
+def cmd_whatsapp_personal(args):
+    """Set up personal WhatsApp for read-only context access. [TIAMAT]"""
+    _require_tty("whatsapp-personal")
+    import subprocess
+    from pathlib import Path
+    from hermes_cli.config import save_env_value
+
+    print()
+    print("🔍 WhatsApp Personal Monitor (Solo Lectura)")
+    print("=" * 60)
+    print()
+    print("Esto conectará tu WhatsApp PERSONAL para que el agente")
+    print("pueda recordar tus conversaciones y ayudarte con contexto.")
+    print()
+    print("⚠️  IMPORTANTE:")
+    print("   • Solo lectura - el agente NUNCA enviará mensajes desde tu número")
+    print("   • Los mensajes se guardan localmente en ~/.hermes/whatsapp_memory/")
+    print("   • Puede coexistir con el bot de WhatsApp (número separado)")
+    print()
+
+    # Habilitar modo personal
+    save_env_value("WHATSAPP_PERSONAL_ENABLED", "true")
+    print("✓ WhatsApp Personal monitor habilitado")
+
+    # Instalar dependencias si es necesario
+    project_root = Path(__file__).resolve().parents[1]
+    bridge_dir = project_root / "scripts" / "whatsapp-bridge"
+    bridge_script = bridge_dir / "bridge.js"
+
+    if not bridge_script.exists():
+        print(f"\n✗ Bridge script no encontrado en {bridge_script}")
+        return
+
+    if not (bridge_dir / "node_modules").exists():
+        print("\n→ Instalando dependencias del bridge...")
+        result = subprocess.run(
+            ["npm", "install"],
+            cwd=str(bridge_dir),
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            print(f"  ✗ npm install falló: {result.stderr}")
+            return
+        print("  ✓ Dependencias instaladas")
+
+    # Verificar sesión existente
+    from hermes_cli.config import get_hermes_home
+    session_dir = get_hermes_home() / "whatsapp" / "session-personal"
+    session_dir.mkdir(parents=True, exist_ok=True)
+
+    if (session_dir / "creds.json").exists():
+        print("\n✓ Sesión personal ya existe")
+        try:
+            response = input("\n  ¿Re-emparejar? Esto borrará la sesión existente. [y/N] ").strip()
+        except (EOFError, KeyboardInterrupt):
+            response = "n"
+        if response.lower() in ("y", "yes"):
+            import shutil
+            shutil.rmtree(session_dir, ignore_errors=True)
+            session_dir.mkdir(parents=True, exist_ok=True)
+            print("  ✓ Sesión anterior eliminada")
+        else:
+            print("\n✓ WhatsApp Personal ya está configurado")
+            print("  El monitor se iniciará automáticamente con el gateway.")
+            print()
+            print("  Para probar:")
+            print("    1. Inicia el gateway: hermes gateway")
+            print("    2. Envía un mensaje desde tu WhatsApp personal")
+            print("    3. Pregunta al agente: 'resume mis mensajes'")
+            return
+
+    # QR Pairing
+    print()
+    print("─" * 60)
+    print("📱 Abre WhatsApp en tu teléfono PERSONAL y escanea:")
+    print()
+    print("   Ajustes → Dispositivos vinculados → Vincular dispositivo")
+    print("─" * 60)
+    print()
+
+    try:
+        subprocess.run(
+            ["node", str(bridge_script),
+             "--pair-only",
+             "--session", str(session_dir),
+             "--mode", "personal-monitor",
+             "--port", "3001"],
+            cwd=str(bridge_dir),
+        )
+    except KeyboardInterrupt:
+        pass
+
+    # Post-pairing
+    print()
+    if (session_dir / "creds.json").exists():
+        print("✅ WhatsApp Personal emparejado correctamente!")
+        print()
+        print("  Próximos pasos:")
+        print("    1. Inicia el gateway: hermes gateway")
+        print("    2. El monitor se iniciará automáticamente en puerto 3001")
+        print("    3. Tus mensajes se guardarán para que el agente tenga contexto")
+        print()
+        print("  Ejemplos de uso:")
+        print("    • 'qué me dijo Juanito sobre el presupuesto?'")
+        print("    • 'resume mi última conversación con María'")
+        print("    • 'busca mensajes donde mencionen urgente'")
+        print()
+        print("  Privacidad: Solo tú ves estos datos mediante el tool de búsqueda.")
+    else:
+        print("⚠ Emparejamiento falló. Intenta de nuevo con:")
+        print("   hermes whatsapp-personal")
+
+
 def cmd_setup(args):
     """Interactive setup wizard."""
     _require_tty("setup")
@@ -4319,6 +4434,16 @@ For more help on a command:
         description="Configure WhatsApp and pair via QR code"
     )
     whatsapp_parser.set_defaults(func=cmd_whatsapp)
+
+    # =========================================================================
+    # whatsapp-personal command [TIAMAT]
+    # =========================================================================
+    whatsapp_personal_parser = subparsers.add_parser(
+        "whatsapp-personal",
+        help="Connect your personal WhatsApp for read-only memory access",
+        description="Pair your personal WhatsApp to give the agent context of your conversations"
+    )
+    whatsapp_personal_parser.set_defaults(func=cmd_whatsapp_personal)
 
     # =========================================================================
     # login command

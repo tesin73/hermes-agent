@@ -1230,6 +1230,31 @@ class GatewayRunner:
         if connected_count > 0:
             logger.info("Gateway running with %s platform(s)", connected_count)
         
+        # [TIAMAT] Start WhatsApp Personal Monitor (optional, read-only)
+        # This runs alongside the main WhatsApp adapter for memory/context
+        if os.getenv("WHATSAPP_PERSONAL_ENABLED", "").lower() in ("true", "1", "yes"):
+            try:
+                from gateway.platforms.whatsapp_personal_monitor import WhatsAppPersonalMonitor
+                personal_monitor = WhatsAppPersonalMonitor(None)  # No config needed
+                personal_monitor.gateway_runner = self
+                
+                # Check if already paired
+                ready, msg = personal_monitor.check_ready()
+                if ready:
+                    logger.info("[TIAMAT] Starting WhatsApp Personal Monitor...")
+                    monitor_started = await personal_monitor.start()
+                    if monitor_started:
+                        # Store separately - it's not bidirectional like other adapters
+                        self._personal_monitor = personal_monitor
+                        logger.info("[TIAMAT] WhatsApp Personal Monitor active (read-only)")
+                    else:
+                        logger.warning("[TIAMAT] WhatsApp Personal Monitor failed to start: %s", msg)
+                else:
+                    logger.warning("[TIAMAT] WhatsApp Personal not paired: %s", msg)
+                    logger.info("[TIAMAT] Run 'hermes whatsapp-personal' to pair your personal number")
+            except Exception as e:
+                logger.error("[TIAMAT] Error starting WhatsApp Personal Monitor: %s", e)
+        
         # Build initial channel directory for send_message name resolution
         try:
             from gateway.channel_directory import build_channel_directory
@@ -1490,6 +1515,16 @@ class GatewayRunner:
         self._running_agents.clear()
         self._pending_messages.clear()
         self._pending_approvals.clear()
+        
+        # [TIAMAT] Stop WhatsApp Personal Monitor if running
+        if hasattr(self, '_personal_monitor') and self._personal_monitor:
+            try:
+                await self._personal_monitor.stop()
+                logger.info("✓ WhatsApp Personal Monitor stopped")
+            except Exception as e:
+                logger.error("✗ WhatsApp Personal Monitor stop error: %s", e)
+            self._personal_monitor = None
+        
         self._shutdown_event.set()
         
         from gateway.status import remove_pid_file, write_runtime_status

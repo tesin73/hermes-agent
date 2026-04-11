@@ -47,7 +47,7 @@ const IMAGE_CACHE_DIR = path.join(process.env.HOME || '~', '.hermes', 'image_cac
 const DOCUMENT_CACHE_DIR = path.join(process.env.HOME || '~', '.hermes', 'document_cache');
 const AUDIO_CACHE_DIR = path.join(process.env.HOME || '~', '.hermes', 'audio_cache');
 const PAIR_ONLY = args.includes('--pair-only');
-const WHATSAPP_MODE = getArg('mode', process.env.WHATSAPP_MODE || 'self-chat'); // "bot" or "self-chat"
+const WHATSAPP_MODE = getArg('mode', process.env.WHATSAPP_MODE || 'self-chat'); // "bot", "self-chat", or "personal-monitor"
 const ALLOWED_USERS = parseAllowedUsers(process.env.WHATSAPP_ALLOWED_USERS || '');
 const DEFAULT_REPLY_PREFIX = '⚕ *Hermes Agent*\n────────────\n';
 const REPLY_PREFIX = process.env.WHATSAPP_REPLY_PREFIX === undefined
@@ -372,6 +372,13 @@ app.get('/messages', (req, res) => {
 
 // Send a message
 app.post('/send', async (req, res) => {
+  // [TIAMAT] Personal monitor mode: block all sending
+  if (WHATSAPP_MODE === 'personal-monitor') {
+    return res.status(403).json({ 
+      error: 'Personal monitor mode is read-only. Cannot send messages.' 
+    });
+  }
+
   if (!sock || connectionState !== 'connected') {
     return res.status(503).json({ error: 'Not connected to WhatsApp' });
   }
@@ -400,6 +407,13 @@ app.post('/send', async (req, res) => {
 
 // Edit a previously sent message
 app.post('/edit', async (req, res) => {
+  // [TIAMAT] Personal monitor mode: block all editing
+  if (WHATSAPP_MODE === 'personal-monitor') {
+    return res.status(403).json({ 
+      error: 'Personal monitor mode is read-only. Cannot edit messages.' 
+    });
+  }
+
   if (!sock || connectionState !== 'connected') {
     return res.status(503).json({ error: 'Not connected to WhatsApp' });
   }
