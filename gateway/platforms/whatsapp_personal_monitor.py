@@ -50,8 +50,9 @@ class WhatsAppPersonalMonitor(BasePlatformAdapter):
     - Solo almacena mensajes, nunca responde
     """
     
-    # Default bridge location
-    _DEFAULT_BRIDGE_DIR = Path(__file__).resolve().parents[2] / "scripts" / "whatsapp-bridge"
+    # Default bridge location - use persistent volume if available
+    _PERSISTENT_BRIDGE_DIR = Path("/opt/data/whatsapp-bridge")
+    _DEFAULT_BRIDGE_DIR = _PERSISTENT_BRIDGE_DIR if (_PERSISTENT_BRIDGE_DIR / "node_modules").exists() else Path(__file__).resolve().parents[2] / "scripts" / "whatsapp-bridge"
     
     def __init__(self, config: Optional[PlatformConfig] = None):
         """Inicializar el adapter personal."""

@@ -1,4 +1,40 @@
 #!/bin/bash
+set -e
+
+# FIX: Instalar Baileys 6.7.16 en volumen persistente si no existe
+BRIDGE_DIR=/opt/data/whatsapp-bridge
+if [ ! -d "$BRIDGE_DIR/node_modules/@whiskeysockets/baileys" ]; then
+    echo "[FIX] Setting up Baileys 6.7.16 in persistent volume..."
+    mkdir -p $BRIDGE_DIR
+    cd $BRIDGE_DIR
+    
+    cat > package.json << 'EOF_PKG'
+{
+  "name": "whatsapp-bridge",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@whiskeysockets/baileys": "6.7.16",
+    "express": "^4.18.2",
+    "pino": "^8.16.2",
+    "pino-pretty": "^10.2.3",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
+EOF_PKG
+
+    npm install --prefer-offline --silent 2>&1 | tail -3 || true
+    cp /opt/hermes/scripts/whatsapp-bridge/bridge.js . 2>/dev/null || true
+    cp /opt/hermes/scripts/whatsapp-bridge/allowlist.js . 2>/dev/null || true
+    echo "[FIX] Bridge ready in $BRIDGE_DIR"
+fi
+
+cd /opt/hermes
+
+# Export environment variables for Python subprocesses
+export HERMES_HOME="${HERMES_HOME:-/opt/data}"
+export WHATSAPP_ENABLED="${WHATSAPP_ENABLED:-true}"
+
 # Docker entrypoint: bootstrap config files into the mounted volume, then run hermes.
 set -e
 

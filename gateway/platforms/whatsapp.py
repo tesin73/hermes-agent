@@ -136,8 +136,9 @@ class WhatsAppAdapter(BasePlatformAdapter):
     # WhatsApp message limits
     MAX_MESSAGE_LENGTH = 65536  # WhatsApp allows longer messages
     
-    # Default bridge location relative to the hermes-agent install
-    _DEFAULT_BRIDGE_DIR = Path(__file__).resolve().parents[2] / "scripts" / "whatsapp-bridge"
+    # Default bridge location - use persistent volume if available
+    _PERSISTENT_BRIDGE_DIR = Path("/opt/data/whatsapp-bridge")
+    _DEFAULT_BRIDGE_DIR = _PERSISTENT_BRIDGE_DIR if (_PERSISTENT_BRIDGE_DIR / "node_modules").exists() else Path(__file__).resolve().parents[2] / "scripts" / "whatsapp-bridge"
 
     def __init__(self, config: PlatformConfig):
         super().__init__(config, Platform.WHATSAPP)
