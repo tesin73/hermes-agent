@@ -2,7 +2,8 @@
 # Docker entrypoint: bootstrap config files into the mounted volume, then run hermes.
 set -e
 
-HERMES_HOME="${HERMES_HOME:-/opt/data}"
+export HERMES_HOME="${HERMES_HOME:-/opt/data}"
+export WHATSAPP_ENABLED="${WHATSAPP_ENABLED:-false}"
 INSTALL_DIR="/opt/hermes"
 
 # Create essential directory structure.
