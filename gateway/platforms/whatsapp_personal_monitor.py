@@ -273,6 +273,31 @@ class WhatsAppPersonalMonitor(BasePlatformAdapter):
         except Exception as e:
             logger.debug("[WhatsApp Personal] Error guardando mensaje: %s", e)
     
+    # =========================================================================
+    # Abstract methods required by BasePlatformAdapter
+    # =========================================================================
+    
+    async def connect(self) -> bool:
+        """Connect to the platform and start receiving messages."""
+        return await self.start()
+    
+    async def disconnect(self) -> None:
+        """Disconnect from the platform."""
+        await self.stop()
+    
+    async def send(self, chat_id: str, content: str, reply_to: Optional[str] = None, metadata: Optional[Dict[str, Any]] = None) -> Any:
+        """
+        BLOQUEADO: Este adaptador NUNCA envía mensajes.
+        WhatsApp Personal Monitor es SOLO LECTURA.
+        """
+        from gateway.platforms.base import SendResult
+        logger.warning("[WhatsApp Personal] Intento de enviar mensaje bloqueado: %s", chat_id)
+        return SendResult(
+            success=False,
+            error="WhatsApp Personal Monitor es SOLO LECTURA. "
+                  "No puede enviar mensajes. Usa el WhatsApp principal (bot) para responder."
+        )
+    
     async def send_message(self, recipient: str, content: str, **kwargs) -> None:
         """
         BLOQUEADO: Este adaptador NUNCA envía mensajes.
