@@ -16,7 +16,7 @@ WORKDIR /opt/hermes
 RUN pip install --no-cache-dir -e ".[all]" --break-system-packages && \
     npm install --prefer-offline --no-audit && \
     npx playwright install --with-deps chromium --only-shell && \
-    cd /opt/hermes/scripts/whatsapp-bridge && \
+    cd /opt/hermes/scripts/whatsapp-bridge && sed -i "s/7.0.0-rc.9/6.7.16/g" package.json && \
     npm install --prefer-offline --no-audit && \
     npm cache clean --force
 
