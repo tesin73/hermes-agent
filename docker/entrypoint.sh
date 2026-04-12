@@ -147,4 +147,4 @@ fi
 # START GATEWAY
 # =============================================================================
 echo "[entrypoint] 🚀 Starting Hermes Gateway..."
-exec hermes gateway
+exec hermes gateway run
