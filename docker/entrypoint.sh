@@ -31,15 +31,10 @@ fi
 
 cd /opt/hermes
 
+# Docker entrypoint: bootstrap config files into the mounted volume, then run hermes.
 # Export environment variables for Python subprocesses
 export HERMES_HOME="${HERMES_HOME:-/opt/data}"
 export WHATSAPP_ENABLED="${WHATSAPP_ENABLED:-true}"
-
-# Docker entrypoint: bootstrap config files into the mounted volume, then run hermes.
-set -e
-
-export HERMES_HOME="${HERMES_HOME:-/opt/data}"
-export WHATSAPP_ENABLED="${WHATSAPP_ENABLED:-false}"
 INSTALL_DIR="/opt/hermes"
 
 # Create essential directory structure.
