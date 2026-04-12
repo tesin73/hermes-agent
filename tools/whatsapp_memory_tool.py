@@ -1,213 +1,173 @@
-#!/usr/bin/env python3
 """
-WhatsApp Memory Tool - Búsqueda en memoria de contactos de WhatsApp
+Tool para buscar en memoria de WhatsApp (tanto bot como personal).
 
-Permite al agente buscar mensajes previos de contactos para poder
-responder con contexto: "Juanito te dijo..." en lugar de perder la
-referencia de quién dijo qué.
+Permite al agente consultar mensajes previos para dar contexto a las respuestas.
+Integra con WhatsAppContactStore para búsqueda persistente.
 
-Este tool es "bajo demanda" - no inyecta nada al system prompt,
-solo se usa cuando el agente decide que necesita contexto de 
-conversaciones previas.
+Uso:
+    search_whatsapp_memory(query="presupuesto", contact="Juanito", hours_ago=24)
 """
-
-import json
-import os
-import sys
+import logging
+import time
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Optional
 
-# Asegurar que el path del proyecto esté disponible para imports
-HERMES_ROOT = Path(__file__).resolve().parents[1]
-if str(HERMES_ROOT) not in sys.path:
-    sys.path.insert(0, str(HERMES_ROOT))
+logger = logging.getLogger(__name__)
 
-from tools.registry import registry
+# Schema para el tool
+SEARCH_WHATSAPP_MEMORY_SCHEMA = {
+    "name": "search_whatsapp_memory",
+    "description": "Busca en mensajes de WhatsApp guardados del bot o del número personal. Usa esta herramienta cuando el usuario pregunte sobre conversaciones previas, contactos, o necesites contexto de mensajes anteriores.",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Palabra clave o frase a buscar en el contenido de los mensajes"
+            },
+            "contact": {
+                "type": "string", 
+                "description": "Nombre o número de contacto específico (opcional)"
+            },
+            "source": {
+                "type": "string",
+                "description": "Origen de los mensajes: 'bot', 'personal', o dejar vacío para ambos",
+                "enum": ["bot", "personal", ""]
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Máximo número de mensajes a retornar (default: 10, max: 50)",
+                "minimum": 1,
+                "maximum": 50,
+                "default": 10
+            },
+            "hours_ago": {
+                "type": "integer",
+                "description": "Buscar solo mensajes de las últimas N horas (opcional)"
+            }
+        }
+    }
+}
 
 
-def check_whatsapp_memory_requirements() -> bool:
-    """
-    Verifica si el store de WhatsApp está disponible.
-    Siempre retorna True - el tool está disponible pero puede no tener datos.
-    """
-    try:
-        from gateway.platforms.whatsapp_contact_store import WhatsAppContactStore
-        return True
-    except ImportError:
-        return False
-
-
-def search_whatsapp_memory(
-    query: str, 
-    search_type: str = "auto", 
+def _handle_search_whatsapp_memory(
+    query: Optional[str] = None,
+    contact: Optional[str] = None,
+    source: Optional[str] = None,
     limit: int = 10,
-    task_id: str = None
+    hours_ago: Optional[int] = None,
 ) -> str:
     """
-    Busca en la memoria de contactos de WhatsApp.
-    
-    Úsalo cuando el usuario pregunte sobre:
-    - "qué me dijo [alguien]"
-    - "recuerdas lo que dijo [alguien] sobre [tema]"
-    - "qué conversamos con [alguien]"
-    - Necesitas contexto de conversaciones previas con un contacto
-    
-    La búsqueda retorna mensajes en formato:
-    "Juanito te dijo: [mensaje]"
+    Handler para buscar en memoria de WhatsApp.
     
     Args:
-        query: Nombre del contacto (ej: "Juanito") o texto a buscar
-        search_type: Tipo de búsqueda - "auto", "contact" (por nombre/número), 
-                     "content" (buscar texto en mensajes)
-        limit: Máximo de mensajes a retornar (default: 10)
+        query: Palabra clave a buscar
+        contact: Contacto específico
+        source: 'bot', 'personal', o None para ambos
+        limit: Máximo de resultados
+        hours_ago: Filtrar por últimas N horas
         
     Returns:
-        JSON string con resultados formateados
+        String con los mensajes encontrados
     """
+    # Limite máximo para evitar sobrecarga
+    limit = min(limit, 50)
+    
+    # Intentar importar WhatsAppContactStore (lazy import para evitar circulares)
     try:
-        from gateway.platforms.whatsapp_contact_store import WhatsAppContactStore
-    except ImportError as e:
-        return json.dumps({
-            "success": False,
-            "error": f"WhatsAppContactStore no disponible: {e}",
-            "query": query
-        }, ensure_ascii=False)
-    
-    if not query or not query.strip():
-        return json.dumps({
-            "success": False,
-            "error": "Query vacío. Proporciona un nombre de contacto o texto a buscar.",
-            "query": query
-        }, ensure_ascii=False)
-    
-    store = WhatsAppContactStore()
-    
-    # Ejecutar búsqueda según tipo
-    if search_type == "contact":
-        results = store.search_by_contact(query, limit)
-    elif search_type == "content":
-        results = store.search_by_content(query, limit)
-    else:  # auto
-        # Primero buscar como contacto (más común)
-        results = store.search_by_contact(query, limit)
-        # Si no hay resultados, buscar en contenido
-        if not results:
-            results = store.search_by_content(query, limit)
-    
-    # Formatear para el agente
-    formatted = store.format_for_agent(results)
-    
-    return json.dumps({
-        "success": True,
-        "query": query,
-        "search_type": search_type,
-        "results_count": len(results),
-        "formatted_context": formatted,
-        "raw_results": results
-    }, ensure_ascii=False, default=str)
-
-
-def get_whatsapp_stats(task_id: str = None) -> str:
-    """
-    Retorna estadísticas de la memoria de WhatsApp.
-    Útil para debugging o ver cuántos contactos/mensajes se han guardado.
-    """
-    try:
+        import sys
+        gateway_path = Path(__file__).resolve().parents[1]
+        if str(gateway_path) not in sys.path:
+            sys.path.insert(0, str(gateway_path))
+        
         from gateway.platforms.whatsapp_contact_store import WhatsAppContactStore
         store = WhatsAppContactStore()
-        stats = store.get_stats()
         
-        return json.dumps({
-            "success": True,
-            "stats": stats
-        }, ensure_ascii=False)
+    except ImportError as e:
+        logger.warning(f"Could not import WhatsAppContactStore: {e}")
+        return "❌ El sistema de memoria de WhatsApp no está disponible."
     except Exception as e:
-        return json.dumps({
-            "success": False,
-            "error": str(e)
-        }, ensure_ascii=False)
+        logger.error(f"Error initializing contact store: {e}")
+        return f"❌ Error al acceder a la memoria: {str(e)}"
+    
+    # Calcular timestamp "since" si se especificó hours_ago
+    since = None
+    if hours_ago:
+        since = time.time() - (hours_ago * 3600)
+    
+    # Normalizar source vacío a None
+    if source == "":
+        source = None
+    
+    # Ejecutar búsqueda
+    try:
+        results = store.search_messages(
+            query=query,
+            contact=contact,
+            source=source,
+            limit=limit,
+            since=since,
+        )
+        
+        if not results:
+            search_desc = []
+            if query:
+                search_desc.append(f'query="{query}"')
+            if contact:
+                search_desc.append(f'contact="{contact}"')
+            if source:
+                search_desc.append(f'source="{source}"')
+            
+            desc = ", ".join(search_desc) if search_desc else "criterios especificados"
+            return f"🔍 No se encontraron mensajes con {desc}."
+        
+        # Formatear resultados
+        lines = [
+            f"📱 {len(results)} mensajes encontrados",
+            "",
+        ]
+        
+        for msg in results:
+            sender = msg.get("sender", "Desconocido")
+            content = msg.get("content", "")
+            dt = msg.get("datetime", "Fecha desconocida")
+            msg_source = msg.get("source", "bot")
+            
+            # Truncar contenido largo
+            if len(content) > 200:
+                content = content[:200] + "..."
+            
+            # Icono según fuente
+            icon = "👤" if msg_source == "personal" else "🤖"
+            
+            lines.append(f"{icon} {sender} ({dt}):")
+            lines.append(f"   {content}")
+            lines.append("")
+        
+        return "\n".join(lines)
+        
+    except Exception as e:
+        logger.error(f"Error searching messages: {e}")
+        return f"❌ Error al buscar mensajes: {str(e)}"
 
 
-# ============================================================================
-# Registro de Tools
-# ============================================================================
+def _check_whatsapp_memory_requirements():
+    """Check if WhatsApp memory is available."""
+    try:
+        from hermes_cli.config import get_hermes_home
+        memory_dir = get_hermes_home() / "whatsapp_memory"
+        return memory_dir.exists() or True  # Siempre disponible, se crea al usar
+    except Exception:
+        return True
 
+
+# Registrar tool al importar el módulo
+from tools.registry import registry
 registry.register(
     name="search_whatsapp_memory",
     toolset="whatsapp",
-    schema={
-        "name": "search_whatsapp_memory",
-        "description": (
-            "Busca mensajes recientes de contactos de WhatsApp. "
-            "Úsalo cuando el usuario pregunte 'qué me dijo X', 'recuerdas lo que dijo Y sobre Z', "
-            "o necesites contexto de conversaciones previas con contactos. "
-            "Siempre refiere a los mensajes como 'Juanito te dijo...' - el usuario es el dueño, "
-            "tú solo ves sus mensajes. "
-            "Ejemplos de uso: query='Juanito', query='presupuesto de emergencia', query='56912345678'"
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "query": {
-                    "type": "string",
-                    "description": (
-                        "Nombre del contacto, número de teléfono, o texto a buscar. "
-                        "Ejemplos: 'Juanito', 'Maria', '56912345678', 'presupuesto'"
-                    )
-                },
-                "search_type": {
-                    "type": "string",
-                    "enum": ["auto", "contact", "content"],
-                    "description": (
-                        "Tipo de búsqueda: 'contact' busca por nombre/número, "
-                        "'content' busca texto dentro de mensajes, 'auto' intenta ambos"
-                    ),
-                    "default": "auto"
-                },
-                "limit": {
-                    "type": "integer",
-                    "description": "Máximo de mensajes a retornar por contacto",
-                    "default": 10,
-                    "minimum": 1,
-                    "maximum": 50
-                }
-            },
-            "required": ["query"]
-        }
-    },
-    handler=lambda args, **kw: search_whatsapp_memory(
-        query=args.get("query", ""),
-        search_type=args.get("search_type", "auto"),
-        limit=args.get("limit", 10),
-        task_id=kw.get("task_id")
-    ),
-    check_fn=check_whatsapp_memory_requirements,
+    schema=SEARCH_WHATSAPP_MEMORY_SCHEMA,
+    handler=_handle_search_whatsapp_memory,
+    check_fn=_check_whatsapp_memory_requirements,
+    emoji="📱",
 )
-
-registry.register(
-    name="get_whatsapp_memory_stats",
-    toolset="whatsapp",
-    schema={
-        "name": "get_whatsapp_memory_stats",
-        "description": (
-            "Obtiene estadísticas de la memoria de WhatsApp: "
-            "cuántos contactos guardados, total de mensajes, etc. "
-            "Útil para debugging o verificar que la memoria está funcionando."
-        ),
-        "parameters": {
-            "type": "object",
-            "properties": {},
-            "required": []
-        }
-    },
-    handler=lambda args, **kw: get_whatsapp_stats(task_id=kw.get("task_id")),
-    check_fn=check_whatsapp_memory_requirements,
-)
-
-
-def check_whatsapp_memory_tool():
-    """Función auxiliar para verificar que el tool cargó correctamente."""
-    return {
-        "registered_tools": ["search_whatsapp_memory", "get_whatsapp_memory_stats"],
-        "requirements_met": check_whatsapp_memory_requirements()
-    }

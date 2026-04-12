@@ -48,6 +48,7 @@ const DOCUMENT_CACHE_DIR = path.join(process.env.HOME || '~', '.hermes', 'docume
 const AUDIO_CACHE_DIR = path.join(process.env.HOME || '~', '.hermes', 'audio_cache');
 const PAIR_ONLY = args.includes('--pair-only');
 const WHATSAPP_MODE = getArg('mode', process.env.WHATSAPP_MODE || 'self-chat'); // "bot", "self-chat", or "personal-monitor"
+const IS_READ_ONLY = WHATSAPP_MODE === 'personal-monitor';
 const ALLOWED_USERS = parseAllowedUsers(process.env.WHATSAPP_ALLOWED_USERS || '');
 const DEFAULT_REPLY_PREFIX = '⚕ *Hermes Agent*\n────────────\n';
 const REPLY_PREFIX = process.env.WHATSAPP_REPLY_PREFIX === undefined
@@ -557,6 +558,8 @@ app.get('/chat/:id', async (req, res) => {
 app.get('/health', (req, res) => {
   res.json({
     status: connectionState,
+    mode: WHATSAPP_MODE,
+    readOnly: IS_READ_ONLY,
     queueLength: messageQueue.length,
     uptime: process.uptime(),
   });
