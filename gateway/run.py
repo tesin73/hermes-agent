@@ -1239,7 +1239,7 @@ class GatewayRunner:
                 personal_monitor.gateway_runner = self
                 
                 # Check if already paired
-                ready, msg = personal_monitor.check_ready()
+                ready, msg = await personal_monitor.check_ready()
                 if ready:
                     logger.info("[TIAMAT] Starting WhatsApp Personal Monitor...")
                     monitor_started = await personal_monitor.start()
