@@ -118,6 +118,11 @@ const MAX_QUEUE_SIZE = 100;
 const recentlySentIds = new Set();
 const MAX_RECENT_IDS = 50;
 
+// Contact name store: maps JID -> address book name (from phone contacts)
+// Populated by Baileys contacts.upsert / contacts.update events.
+// The "name" field is the name the USER assigned, not the pushName.
+const contactNames = new Map();
+
 let sock = null;
 let connectionState = 'disconnected';
 
@@ -177,6 +182,21 @@ async function startSocket() {
         // Give Baileys a moment to flush creds, then exit cleanly
         setTimeout(() => process.exit(0), 2000);
       }
+    }
+  });
+
+  // Capture contact names from the user's address book.
+  // Baileys syncs these on connection; "name" = saved contact name,
+  // "notify" = pushName (profile name set by the other person).
+  sock.ev.on('contacts.upsert', (contacts) => {
+    for (const c of contacts) {
+      if (c.name) contactNames.set(c.id, c.name);
+    }
+    if (WHATSAPP_DEBUG) console.log(`[bridge] contacts.upsert: ${contacts.length} contacts, ${contactNames.size} with names`);
+  });
+  sock.ev.on('contacts.update', (updates) => {
+    for (const c of updates) {
+      if (c.name) contactNames.set(c.id, c.name);
     }
   });
 
@@ -340,8 +360,8 @@ async function startSocket() {
         messageId: msg.key.id,
         chatId,
         senderId,
-        senderName: msg.pushName || senderNumber,
-        chatName: isGroup ? (chatId.split('@')[0]) : (msg.pushName || senderNumber),
+        senderName: contactNames.get(senderId) || msg.pushName || senderNumber,
+        chatName: isGroup ? (chatId.split('@')[0]) : (contactNames.get(senderId) || msg.pushName || senderNumber),
         isGroup,
         body,
         hasMedia,
