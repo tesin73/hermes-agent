@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mattn/go-sqlite3"
 	"github.com/mdp/qrterminal"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
@@ -33,6 +32,8 @@ var messageStore []MessageStore
 const maxStoreSize = 1000
 
 func main() {
+	log.Println("[WhatsMeow] Iniciando...")
+	
 	sessionName := os.Getenv("WHATSMEOW_SESSION")
 	if sessionName == "" {
 		sessionName = "default"
@@ -45,8 +46,9 @@ func main() {
 	os.MkdirAll(fmt.Sprintf("/opt/data/whatsapp-meow/%s", sessionName), 0755)
 
 	dbPath := fmt.Sprintf("/opt/data/whatsapp-meow/%s/store.db", sessionName)
-	dbLog := waLog.Stdout("Database", "INFO", true)
-	container, err := sqlstore.New("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on", dbPath), dbLog)
+	
+	var err error
+	container, err := sqlstore.New("sqlite3", fmt.Sprintf("file:%s?_foreign_keys=on", dbPath), nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -59,12 +61,11 @@ func main() {
 		deviceStore = container.NewDevice()
 	}
 
-	clientLog := waLog.Stdout("Client", "INFO", true)
-	client = whatsmeow.NewClient(deviceStore, clientLog)
+	client = whatsmeow.NewClient(deviceStore, nil)
 	client.AddEventHandler(eventHandler)
 
 	if client.Store.ID == nil {
-		log.Println("No existe sesion, generando QR...")
+		log.Println("[WhatsMeow] No existe sesion, generando QR...")
 		qrChan, _ := client.GetQRChannel(context.Background())
 		err = client.Connect()
 		if err != nil {
@@ -75,7 +76,7 @@ func main() {
 				qrterminal.GenerateHalfBlock(evt.Code, qrterminal.L, os.Stdout)
 				log.Println("Escanea el QR para", sessionName)
 			} else {
-				log.Println("Evento QR:", evt.Event)
+				log.Println("Evento:", evt.Event)
 			}
 		}
 	} else {
@@ -83,21 +84,20 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Println("Conectado usando sesion existente")
+		log.Println("[WhatsMeow] Conectado!")
 	}
 
 	http.HandleFunc("/health", healthHandler)
 	http.HandleFunc("/messages", messagesHandler)
-	http.HandleFunc("/contacts", contactsHandler)
 	http.HandleFunc("/status", statusHandler)
 
-	log.Println("API WhatsMeow en puerto", port)
+	log.Println("[WhatsMeow] API en puerto", port)
 	go http.ListenAndServe(":"+port, nil)
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	<-c
-	log.Println("Desconectando...")
+	log.Println("[WhatsMeow] Desconectando...")
 	client.Disconnect()
 }
 
@@ -106,9 +106,9 @@ func eventHandler(evt interface{}) {
 	case *events.Message:
 		storeMessage(v)
 	case *events.Connected:
-		log.Println("Conectado a WhatsApp!")
+		log.Println("[WhatsMeow] Conectado a WhatsApp!")
 	case *events.Disconnected:
-		log.Println("Desconectado de WhatsApp")
+		log.Println("[WhatsMeow] Desconectado")
 	}
 }
 
@@ -136,6 +136,15 @@ func storeMessage(msg *events.Message) {
 	if len(messageStore) > maxStoreSize {
 		messageStore = messageStore[len(messageStore)-maxStoreSize:]
 	}
+	
+	log.Printf("[MENSAJE] %s: %s", store.Name, store.Message[:min(50,len(store.Message))])
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
@@ -149,20 +158,10 @@ func messagesHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(messageStore)
 }
 
-func contactsHandler(w http.ResponseWriter, r *http.Request) {
-	contacts := make(map[string]string)
-	for _, msg := range messageStore {
-		if msg.Name != "" {
-			contacts[msg.JID] = msg.Name
-		}
-	}
-	json.NewEncoder(w).Encode(contacts)
-}
-
 func statusHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"connected":     client.IsConnected(),
-		"logged_in":     client.Store.ID != nil,
+		"connected":      client.IsConnected(),
+		"logged_in":      client.Store.ID != nil,
 		"messages_count": len(messageStore),
 	})
 }

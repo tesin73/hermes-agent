@@ -3,9 +3,9 @@ module whatsapp-meow
 go 1.19
 
 require (
-	github.com/mattn/go-sqlite3 v1.14.17
+	github.com/mattn/go-sqlite3 v1.14.20
 	github.com/mdp/qrterminal v1.0.0
-	go.mau.fi/whatsmeow v0.0.0-20240120193853-914c3db881f3
+	go.mau.fi/whatsmeow v0.0.0-20231213124914-2f54e8c9bd39
 )
 
 require (
