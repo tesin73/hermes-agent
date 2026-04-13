@@ -143,7 +143,9 @@ class WhatsAppContactStore:
                                 continue
                             if query_lower:
                                 searchable = f"{entry.get('content', '')} {entry.get('sender', '')}".lower()
-                                if query_lower not in searchable:
+                                # Match if ANY query word appears in the message
+                                query_words = query_lower.split()
+                                if not any(w in searchable for w in query_words):
                                     continue
                             
                             results.append(entry)
