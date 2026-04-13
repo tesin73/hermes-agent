@@ -141,8 +141,10 @@ class WhatsAppContactStore:
                                 continue
                             if until and entry.get("timestamp", 0) > until:
                                 continue
-                            if query_lower and query_lower not in entry.get("content", "").lower():
-                                continue
+                            if query_lower:
+                                searchable = f"{entry.get('content', '')} {entry.get('sender', '')}".lower()
+                                if query_lower not in searchable:
+                                    continue
                             
                             results.append(entry)
                             

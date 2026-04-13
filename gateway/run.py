@@ -1771,6 +1771,10 @@ class GatewayRunner:
         config = getattr(self, "config", None)
         if config and hasattr(config, "get_unauthorized_dm_behavior"):
             return config.get_unauthorized_dm_behavior(platform)
+        # WhatsApp: default to ignore — personal monitor is read-only,
+        # and the bot adapter should NOT send unsolicited pairing messages.
+        if platform == Platform.WHATSAPP:
+            return "ignore"
         return "pair"
     
     async def _handle_message(self, event: MessageEvent) -> Optional[str]:

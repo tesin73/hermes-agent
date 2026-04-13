@@ -266,24 +266,28 @@ class WhatsAppPersonalMonitor(BasePlatformAdapter):
     async def _process_message(self, msg_data: dict):
         """Procesar mensaje recibido - solo guardar, nunca responder."""
         try:
-            sender = msg_data.get("senderId", "")
+            sender_id = msg_data.get("senderId", "")
+            sender_name = msg_data.get("senderName", "")
             content = msg_data.get("body", "")
             msg_type = msg_data.get("mediaType", "text") if msg_data.get("hasMedia") else "text"
             
-            # Extraer contacto del sender (quitar sufijo @s.whatsapp.net)
-            contact = sender.split("@")[0] if "@" in sender else sender
+            # Extraer contacto del sender (quitar sufijo @s.whatsapp.net / @lid)
+            contact = sender_id.split("@")[0] if "@" in sender_id else sender_id
             
-            logger.debug(f"Personal message from {contact}: {content[:50]}...")
+            # Usar nombre legible si está disponible, sino el ID
+            display_name = sender_name or contact
+            
+            logger.debug(f"Personal message from {display_name} ({contact}): {content[:50]}...")
             
             # Guardar en contact store
             if self._contact_store:
                 self._contact_store.save_message(
                     contact_id=contact,
-                    sender=sender,
+                    sender=display_name,
                     content=content,
                     message_type=msg_type,
                     source="personal",  # Marcar como personal
-                    metadata={"adapter": "whatsapp-personal"}
+                    metadata={"chat_id": sender_id, "adapter": "whatsapp-personal"}
                 )
             
             # NUNCA respondemos - solo guardamos
