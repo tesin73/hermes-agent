@@ -409,11 +409,6 @@ class GatewayConfig:
                     platform_cfg.extra.get("unauthorized_dm_behavior"),
                     self.unauthorized_dm_behavior,
                 )
-            # WhatsApp: NEVER send unsolicited pairing messages.
-            # The personal monitor is read-only and the bot adapter should
-            # not auto-reply to strangers on the user's number.
-            if platform == Platform.WHATSAPP:
-                return self.unauthorized_dm_behavior if self.unauthorized_dm_behavior != "pair" else "ignore"
         return self.unauthorized_dm_behavior
 
 
