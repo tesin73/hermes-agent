@@ -50,26 +50,22 @@ SEARCH_WHATSAPP_MEMORY_SCHEMA = {
 }
 
 
-def _handle_search_whatsapp_memory(
-    query: Optional[str] = None,
-    contact: Optional[str] = None,
-    source: Optional[str] = None,
-    limit: int = 10,
-    hours_ago: Optional[int] = None,
-) -> str:
+def _handle_search_whatsapp_memory(args: dict, **kw) -> str:
     """
     Handler para buscar en memoria de WhatsApp.
     
     Args:
-        query: Palabra clave a buscar
-        contact: Contacto específico
-        source: 'bot', 'personal', o None para ambos
-        limit: Máximo de resultados
-        hours_ago: Filtrar por últimas N horas
+        args: Dict con query, contact, source, limit, hours_ago
         
     Returns:
         String con los mensajes encontrados
     """
+    query = args.get("query")
+    contact = args.get("contact")
+    source = args.get("source")
+    limit = args.get("limit", 10)
+    hours_ago = args.get("hours_ago")
+
     # Limite máximo para evitar sobrecarga
     limit = min(limit, 50)
     
