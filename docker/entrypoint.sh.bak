@@ -146,26 +146,6 @@
    146|# =============================================================================
    147|# START GATEWAY
    148|# =============================================================================
-   149|echo "# Iniciar WhatsMeow para fuentes de WhatsApp personal
-if [ "$WHATSAPP_PERSONAL_ENABLED" = "true" ]; then
-    echo "[entrypoint] 📱 Iniciando WhatsMeow para WhatsApp Personal..."
-    
-    # Verificar si el binario existe, si no compilarlo
-    if [ ! -f /opt/hermes/whatsapp-meow ]; then
-        echo "[entrypoint] Compilando WhatsMeow..."
-        cd /opt/hermes/scripts/whatsapp-meow &&
-        go build -o /opt/hermes/whatsapp-meow main.go 2>/dev/null || echo "[entrypoint] ⚠️ No se pudo compilar WhatsMeow (Go no instalado?)"
-    fi
-    
-    # Si el binario existe, iniciarlo
-    if [ -f /opt/hermes/whatsapp-meow ]; then
-        mkdir -p /opt/data/whatsapp-meow
-        WHATSMEOW_SESSION=default WHATSMEOW_PORT=3002 /opt/hermes/whatsapp-meow > /opt/data/whatsapp-meow/meow.log 2>&1 &
-        echo $! > /var/run/whatsmeow.pid
-        echo "[entrypoint] WhatsMeow iniciado en puerto 3002"
-    fi
-fi
-
-[entrypoint] 🚀 Starting Hermes Gateway..."
+   149|echo "[entrypoint] 🚀 Starting Hermes Gateway..."
    150|exec hermes gateway run
    151|
