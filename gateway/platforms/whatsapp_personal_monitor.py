@@ -265,9 +265,9 @@ class WhatsAppPersonalMonitor(BasePlatformAdapter):
     async def _process_message(self, msg_data: dict):
         """Procesar mensaje recibido - solo guardar, nunca responder."""
         try:
-            sender = msg_data.get("sender", "")
-            content = msg_data.get("content", "")
-            msg_type = msg_data.get("type", "text")
+            sender = msg_data.get("senderId", "")
+            content = msg_data.get("body", "")
+            msg_type = msg_data.get("mediaType", "text") if msg_data.get("hasMedia") else "text"
             
             # Extraer contacto del sender (quitar sufijo @s.whatsapp.net)
             contact = sender.split("@")[0] if "@" in sender else sender

@@ -856,16 +856,18 @@ class WhatsAppAdapter(BasePlatformAdapter):
                 return
             
             # Guardar en el contact store
-            self._contact_store.store_message(
-                phone=sender_id,
-                name=sender_name,
-                body=body,
-                from_me=False,  # Siempre False aquí porque filtramos arriba
-                chat_id=chat_id
+            contact = sender_id.split("@")[0] if "@" in sender_id else sender_id
+            self._contact_store.save_message(
+                contact_id=contact,
+                sender=sender_name or sender_id,
+                content=body,
+                message_type="text",
+                source="bot",
+                metadata={"chat_id": chat_id, "adapter": "whatsapp-bot"}
             )
-        except Exception:
-            # Nunca fallar el procesamiento principal por esto
-            pass
+        except Exception as e:
+            # Never fail main processing, but log for debugging
+            logger.debug("Failed to save message to contact store: %s", e)
     
     async def _poll_messages(self) -> None:
         """Poll the bridge for incoming messages."""
