@@ -409,6 +409,15 @@ class GatewayConfig:
                     platform_cfg.extra.get("unauthorized_dm_behavior"),
                     self.unauthorized_dm_behavior,
                 )
+            # WhatsApp: only send pairing messages in "bot" mode (dedicated
+            # number).  In "self-chat" and "personal-monitor" modes the bridge
+            # is connected to the user's personal number — pairing strangers
+            # from that number makes no sense and is unwanted.
+            if platform == Platform.WHATSAPP:
+                import os
+                wa_mode = os.environ.get("WHATSAPP_MODE", "self-chat")
+                if wa_mode != "bot":
+                    return "ignore"
         return self.unauthorized_dm_behavior
 
 

@@ -1771,10 +1771,6 @@ class GatewayRunner:
         config = getattr(self, "config", None)
         if config and hasattr(config, "get_unauthorized_dm_behavior"):
             return config.get_unauthorized_dm_behavior(platform)
-        # WhatsApp: default to ignore — personal monitor is read-only,
-        # and the bot adapter should NOT send unsolicited pairing messages.
-        if platform == Platform.WHATSAPP:
-            return "ignore"
         return "pair"
     
     async def _handle_message(self, event: MessageEvent) -> Optional[str]:
@@ -1797,19 +1793,6 @@ class GatewayRunner:
             logger.warning("Unauthorized user: %s (%s) on %s", source.user_id, source.user_name, source.platform.value)
             # In DMs: offer pairing code. In groups: silently ignore.
             if source.chat_type == "dm" and self._get_unauthorized_dm_behavior(source.platform) == "pair":
-                # WhatsApp: only offer pairing to users whose raw number
-                # appears in the allow list.  This prevents strangers from
-                # receiving unsolicited pairing messages while still letting
-                # pre-approved users pair when LID resolution hasn't kicked in.
-                if source.platform == Platform.WHATSAPP:
-                    import os
-                    raw_allowlist = os.environ.get("WHATSAPP_ALLOWED_USERS", "")
-                    if raw_allowlist != "*" and raw_allowlist:
-                        user_digits = (source.user_id or "").split("@")[0].replace(":", "")
-                        allowed_entries = [e.strip().split("@")[0].replace(":", "") for e in raw_allowlist.split(",") if e.strip()]
-                        if user_digits not in allowed_entries:
-                            logger.debug("WhatsApp user %s not in allow list, ignoring.", source.user_id)
-                            return None
                 platform_name = source.platform.value if source.platform else "unknown"
                 # Rate-limit ALL pairing responses (code or rejection) to
                 # prevent spamming the user with repeated messages when
