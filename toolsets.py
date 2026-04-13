@@ -51,7 +51,7 @@ _HERMES_CORE_TOOLS = [
     # Planning & memory
     "todo", "memory",
     # WhatsApp contact memory [TIAMAT]
-    "search_whatsapp_memory", "get_whatsapp_memory_stats",
+    "search_whatsapp_memory",
     # Session history search
     "session_search",
     # Clarifying questions
@@ -133,6 +133,12 @@ TOOLSETS = {
     "messaging": {
         "description": "Cross-platform messaging: send messages to Telegram, Discord, Slack, SMS, etc.",
         "tools": ["send_message"],
+        "includes": []
+    },
+    
+    "whatsapp": {
+        "description": "WhatsApp contact memory: search past personal and bot WhatsApp messages",
+        "tools": ["search_whatsapp_memory"],
         "includes": []
     },
     
