@@ -5,7 +5,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install only essential dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        python3 python3-pip python3-venv ripgrep git curl && \
+        python3 python3-pip python3-venv ripgrep git curl \
+        g++ make && \
     rm -rf /var/lib/apt/lists/*
 
 COPY . /opt/hermes
@@ -16,8 +17,12 @@ WORKDIR /opt/hermes
 RUN pip install --no-cache-dir -e ".[cron,pty,mcp]" --break-system-packages 2>/dev/null || \
     pip install --no-cache-dir -e ".[cron,pty,mcp]"
 
-# Install Node dependencies (browser tools) and WhatsApp Bridge
-RUN npm install --prefer-offline --no-audit && \
+# Install Node dependencies:
+# - Root package (agent-browser): skip browser binary downloads to avoid OOM on
+#   constrained build servers. Browsers can be installed at runtime if needed.
+# - WhatsApp Bridge (Baileys): lightweight, install normally.
+RUN PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 \
+    npm install --prefer-offline --no-audit && \
     cd /opt/hermes/scripts/whatsapp-bridge && \
     npm install --prefer-offline --no-audit && \
     npm cache clean --force
