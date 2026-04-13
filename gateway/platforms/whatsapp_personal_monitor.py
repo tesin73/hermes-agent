@@ -250,7 +250,8 @@ class WhatsAppPersonalMonitor(BasePlatformAdapter):
                 async with self._http_session.get(poll_url) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        messages = data.get("messages", [])
+                        # Bridge returns a bare array [...], not {messages: [...]}
+                        messages = data if isinstance(data, list) else data.get("messages", [])
                         
                         for msg_data in messages:
                             await self._process_message(msg_data)
