@@ -111,6 +111,9 @@ class WhatsAppPersonalMonitor(BasePlatformAdapter):
         """
         Verificar si la sesión está lista para conectar.
         
+        [TIAMAT HACK] Se ignora el campo registered porque Baileys 6.7.16
+        no lo marca correctamente aunque la conexión funciona.
+        
         Returns:
             (is_ready, message)
         """
@@ -122,22 +125,23 @@ class WhatsAppPersonalMonitor(BasePlatformAdapter):
                 f"Run: hermes whatsapp-personal"
             )
         
-        # Verificar que está registrada
+        # [TIAMAT HACK] Forzar conexión ignorando registered
+        # Baileys 6.7.16 no marca registered=true pero la conexión real funciona
         try:
             creds = json.loads(creds_file.read_text())
-            if not creds.get("registered"):
-                return False, (
-                    f"Session exists but not registered (registered: {creds.get('registered')}).\n"
-                    f"Delete {self._session_path} and re-pair with: hermes whatsapp-personal"
-                )
-            
             phone = creds.get("me", {}).get("id", "unknown")
-            return True, f"Personal WhatsApp ready (phone: {phone})"
+            registered = creds.get("registered", False)
+            
+            if not registered:
+                logger.warning(f"[TIAMAT HACK] Session not officially registered (registered: {registered}) but allowing connection anyway")
+            
+            return True, f"Personal WhatsApp ready (phone: {phone}, registered: {registered})"
             
         except json.JSONDecodeError:
             return False, f"Invalid creds.json at {self._session_path}"
         except Exception as e:
             return False, f"Error checking session: {e}"
+
     
     async def start(self) -> bool:
         """
