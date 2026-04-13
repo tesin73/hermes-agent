@@ -6,11 +6,20 @@ ENV DEBIAN_FRONTEND=noninteractive
 # Install only essential system dependencies (sin nodejs/npm que ya vienen en la imagen base)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        python3 python3-pip python3-venv ripgrep ffmpeg git && \
+        python3 python3-pip python3-venv ripgrep ffmpeg git \
+        golang-go gcc libc6-dev libsqlite3-dev && \
     rm -rf /var/lib/apt/lists/*
 
 COPY . /opt/hermes
 WORKDIR /opt/hermes
+
+# Compilar WhatsMeow para WhatsApp personal
+RUN cd /opt/hermes/scripts/whatsapp-meow && \
+    go mod tidy && \
+    go build -o /opt/hermes/whatsapp-meow main.go && \
+    chmod +x /opt/hermes/whatsapp-meow && \
+    echo "WhatsMeow compilado: $(/opt/hermes/whatsapp-meow --help 2>&1 | head -1 || echo OK)"
+
 
 # Install Python dependencies and setup
 RUN pip install --no-cache-dir -e ".[all]" --break-system-packages && \
