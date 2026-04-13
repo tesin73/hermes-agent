@@ -1,18 +1,26 @@
-FROM node:20-slim
+FROM node:22-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # Install only essential dependencies
-RUN apt-get update &&     apt-get install -y --no-install-recommends         python3 python3-pip python3-venv ripgrep git &&     rm -rf /var/lib/apt/lists/*
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3 python3-pip python3-venv ripgrep git curl && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY . /opt/hermes
 WORKDIR /opt/hermes
 
-# Install Python dependencies (skip heavy browser tools)
-RUN pip install --no-cache-dir -e ".[all]" --break-system-packages 2>/dev/null ||     pip install --no-cache-dir -e ".[all]"
+# Install Python dependencies — only the extras needed for gateway + WhatsApp
+# Core deps are always included. Skip heavy/unused extras like voice, modal, daytona, etc.
+RUN pip install --no-cache-dir -e ".[cron,pty,mcp]" --break-system-packages 2>/dev/null || \
+    pip install --no-cache-dir -e ".[cron,pty,mcp]"
 
-# Install Node dependencies and WhatsApp Bridge
-RUN npm install --prefer-offline --no-audit &&     cd /opt/hermes/scripts/whatsapp-bridge &&     sed -i "s/7.0.0-rc.9/6.7.16/g" package.json &&     npm install --prefer-offline --no-audit &&     npm cache clean --force
+# Install Node dependencies (browser tools) and WhatsApp Bridge
+RUN npm install --prefer-offline --no-audit && \
+    cd /opt/hermes/scripts/whatsapp-bridge && \
+    npm install --prefer-offline --no-audit && \
+    npm cache clean --force
 
 WORKDIR /opt/hermes
 
