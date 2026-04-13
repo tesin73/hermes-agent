@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # Schema para el tool
 SEARCH_WHATSAPP_MEMORY_SCHEMA = {
     "name": "search_whatsapp_memory",
-    "description": "Busca en mensajes de WhatsApp guardados del bot o del número personal. Usa esta herramienta cuando el usuario pregunte sobre conversaciones previas, contactos, o necesites contexto de mensajes anteriores.",
+    "description": "Busca en mensajes de WhatsApp guardados del bot o del número personal. Usa esta herramienta cuando el usuario pregunte sobre conversaciones previas, contactos, o necesites contexto de mensajes anteriores. IMPORTANTE: cuando pregunten sobre un contacto específico, usa el parámetro 'contact' con el nombre — esto retorna TODOS los mensajes recientes de esa persona para que puedas razonar sobre la conversación completa. No necesitás keywords exactos.",
     "parameters": {
         "type": "object",
         "properties": {

@@ -117,12 +117,11 @@ class WhatsAppContactStore:
         """
         results = []
         query_lower = query.lower() if query else None
+        contact_lower = contact.lower() if contact else None
         
-        # Determinar qué archivos buscar
-        if contact:
-            files = [self._memory_dir / f"{self._sanitize_filename(contact)}.jsonl"]
-        else:
-            files = list(self._memory_dir.glob("*.jsonl"))
+        # Always scan all files — contact filtering is done by sender name,
+        # not by filename (files are named by phone number / LID).
+        files = list(self._memory_dir.glob("*.jsonl"))
         
         for file_path in files:
             if not file_path.exists():
@@ -141,9 +140,15 @@ class WhatsAppContactStore:
                                 continue
                             if until and entry.get("timestamp", 0) > until:
                                 continue
-                            if query_lower:
+                            # Filter by contact: match against sender name
+                            if contact_lower and contact_lower not in entry.get("sender", "").lower():
+                                continue
+                            # Filter by query keywords — only when no contact
+                            # was specified.  When a contact IS specified we
+                            # return the full conversation so the model can
+                            # reason semantically over it.
+                            if query_lower and not contact_lower:
                                 searchable = f"{entry.get('content', '')} {entry.get('sender', '')}".lower()
-                                # Match if ANY query word appears in the message
                                 query_words = query_lower.split()
                                 if not any(w in searchable for w in query_words):
                                     continue
